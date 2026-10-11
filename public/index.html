@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="danfo">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Doingz</title>
+  <meta name="description" content="The daily Naija word and quick-fire trivia game." />
+  <link rel="icon" href="/icon.png" />
+  <link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/styles.css" />
+  <script defer src="https://lagoslife.app/sdk/vatar-games-v1.js"></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <span class="wordmark" aria-label="Doingz">Doingz</span>
+    <span class="purse" id="purse" hidden><b id="purse-points">0</b> pts</span>
+  </header>
+  <div class="stripe" aria-hidden="true"></div>
+
+  <main id="view" tabindex="-1">
+    <section class="loading" id="loading">
+      <p class="loading-word" aria-live="polite">Oya, loading…</p>
+    </section>
+  </main>
+
+  <nav class="tabs" id="tabs" hidden aria-label="Sections">
+    <button data-tab="home" aria-current="page">Play</button>
+    <button data-tab="board">Board</button>
+    <button data-tab="shop">Shop</button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="paused" id="paused" hidden><p>Paused</p><span>Your clock has stopped. It starts again when you come back.</span></div>
+</body>
+</html>

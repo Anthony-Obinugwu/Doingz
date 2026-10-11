@@ -1,0 +1,29 @@
+# One-click deploy on Render: New > Blueprint, point it at this repo.
+# A persistent disk needs a paid instance (Starter or above); the free plan wipes the database on every deploy.
+services:
+  - type: web
+    name: doingz
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: doingz-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: APP_SECRET
+        generateValue: true
+      - key: VATAR_SECRET_TEST
+        sync: false
+      - key: VATAR_WEBHOOK_SECRET_TEST
+        sync: false
+      - key: VATAR_SECRET_LIVE
+        sync: false
+      - key: VATAR_WEBHOOK_SECRET_LIVE
+        sync: false
