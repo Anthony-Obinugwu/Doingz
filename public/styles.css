@@ -80,7 +80,7 @@ button:disabled { cursor: default; }
 main { overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 20px; outline: none; }
 
 .tabs {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   background: var(--bar); padding: 6px 8px max(6px, env(safe-area-inset-bottom));
 }
 .tabs button {
@@ -225,6 +225,41 @@ main { overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 20px; 
 .product h2 { margin: 0; font-weight: 900; font-stretch: 70%; font-size: 26px; line-height: 1; }
 .product p { margin: 0; grid-column: 1; font-size: 15px; }
 .product .btn { grid-row: 1 / span 2; grid-column: 2; width: auto; min-width: 96px; }
+
+/* ---------- arcade ---------- */
+
+.arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.game-tile {
+  position: relative; display: grid; gap: 4px; align-content: start; text-align: left;
+  background: var(--panel); color: var(--on-panel); border: 3px solid var(--tile-line); border-radius: var(--radius-lg);
+  box-shadow: 5px 5px 0 var(--tile-line); padding: 12px; min-height: 168px;
+}
+.game-tile:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--tile-line); }
+.game-tile svg { width: 58px; height: 58px; }
+.game-tile b { font-weight: 900; font-stretch: 70%; font-size: 23px; line-height: 1; margin-top: 4px; }
+.game-tile span { font-size: 13.5px; line-height: 1.25; }
+.game-tile em {
+  position: absolute; top: 10px; right: 10px; font-style: normal; font-weight: 800; font-stretch: 80%; font-size: 13px;
+  background: var(--bar); color: var(--on-bar); border-radius: 999px; padding: 2px 9px;
+}
+
+.game { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 6px; }
+main:has(.game) { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.score-strip {
+  display: grid; grid-template-columns: 1fr 1.3fr 1fr; align-items: center; text-align: center;
+  background: var(--panel); color: var(--on-panel); border: 3px solid var(--tile-line); border-radius: var(--radius-lg);
+  box-shadow: 4px 4px 0 var(--tile-line); padding: 6px 4px;
+}
+.score-strip span { display: block; font-size: 13px; font-weight: 700; }
+.score-strip b { display: block; font-weight: 900; font-stretch: 65%; font-size: 30px; line-height: 1; }
+.score-strip .game-name b { font-size: 20px; }
+.game-status { margin: 2px 0; min-height: 1.4em; font-weight: 700; font-stretch: 85%; font-size: 15px; text-align: center; }
+.stage-box { position: relative; flex: 1 1 auto; min-height: 0; display: grid; place-items: center; }
+.stage { display: block; border: 3px solid var(--tile-line); border-radius: var(--radius-lg); box-shadow: 5px 5px 0 var(--tile-line); touch-action: none; }
+.game-bar:empty { display: none; }
+.game-result { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; padding: 12px; }
+.result-card { width: min(100%, 320px); box-shadow: 6px 6px 0 var(--tile-line); }
+.result-card .big { font-size: 42px; margin-bottom: 6px; }
 
 /* ---------- overlays ---------- */
 

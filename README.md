@@ -1,12 +1,13 @@
 # Doingz
 
-The daily Naija word and quick-fire trivia game for Lagos Life, built on the Vatar Games SDK.
+The daily Naija word, quick-fire trivia and a skill-game arcade for Lagos Life, built on the Vatar Games SDK.
 
 - **Today's word.** Guess the five-letter Naija word in six tries: food, Lagos places, cities, slang and culture. A free clue says what kind of word it is, and the meaning shows when you finish.
 - **Quick fire.** Ten questions, fifteen seconds each, on slang, languages, food, Lagos, states and culture. The first three rounds a day earn points; answer fast for a bonus.
-- **Board.** Points from both modes add up on the Lagos Life leaderboard. Points can't be bought.
+- **Arcade.** Nine skill games against the computer: Darts, Archery, Basketball, Zobo Pong, Lagos Mini Golf, Shuffleboard (with bottle covers), Knockout (on a lagoon raft), Tanks (over Olumo Rock) and Paintball (in a vulcanizer's tyre yard). The first ten games a day earn points: 25 for a win, 10 for a draw.
+- **Board.** Points from every mode add up on the Lagos Life leaderboard. Points can't be bought.
 
-Every answer is checked on the server, so today's word and the trivia answers never reach the phone before they're played.
+Every answer and every shot is decided on the server, so today's word and the trivia answers never reach the phone before they're played, and arcade results can't be faked by editing the page.
 
 ## Run it locally
 
@@ -14,7 +15,7 @@ Needs Node 22.13 or newer. There's nothing to install.
 
 ```sh
 npm run dev      # http://localhost:8080 with a pretend local player (DEV_AUTH=1)
-npm test         # 17 tests against a fake Vatar API
+npm test         # 22 tests: the API against a fake Vatar, and every arcade game played to the end
 ```
 
 Outside Lagos Life the game uses a local test player, and shop items are free. That mode is switched off whenever `NODE_ENV=production`.
@@ -45,7 +46,7 @@ At [lagoslife.app/developers/keys](https://lagoslife.app/developers/keys):
 | Game name | Doingz |
 | HTTPS address | `https://<your domain>/` |
 | Webhook | `https://<your domain>/api/vatar-webhook` |
-| Description | Guess the daily Naija word and race the clock in quick-fire trivia. |
+| Description | The daily Naija word, quick-fire trivia and nine arcade games. |
 
 Copy the **test secret** and **test webhook signing secret** (shown once) into your host as `VATAR_SECRET_TEST` and `VATAR_WEBHOOK_SECRET_TEST`, then redeploy.
 
@@ -69,20 +70,22 @@ Open your sandbox at `lagoslife.app/developers/sandbox/<draft>`, then:
 2. Go to **Shop** and buy 5 hints with **Pay (test)**. This ticks **test purchase**, **verified by your server** and **marked delivered**.
 3. Press **Send test webhook** in the dashboard. Optional, but it confirms the webhook works.
 
-Doingz doesn't use multiplayer matches yet, so that item doesn't apply.
+Doingz doesn't use Vatar's multiplayer matches yet (arcade games are against the computer), so that item doesn't apply.
 
 ### 5. Submit
 
 Upload the files in `listing/` and the text below, agree to the Developer Agreement, and submit.
 
 - **Icon:** `listing/icon-512.png`
-- **Screenshots:** `listing/screenshot-1-home.png` to `screenshot-4-shop.png` (750 × 1624)
+- **Screenshots:** `listing/screenshot-1-home.png` to `screenshot-5-arcade.png` (750 × 1624)
 - **Category:** Word or Puzzle (whichever the dashboard offers)
-- **Short description** (97 characters): Guess the daily Naija word and race the clock in quick-fire trivia. Climb the board, sharp sharp.
+- **Short description** (98 characters): The daily Naija word, quick-fire trivia and nine arcade games. Beat the computer, climb the board.
 - **Long description:**
   > Doingz is two games in one. Every day there's a new five-letter Naija word to guess in six tries, from amala to Ikeja to awoof. A free clue tells you what kind of word it is, and when you finish you learn what it means. Then test yourself in Quick fire: ten questions in fifteen seconds each on slang, languages, food, Lagos, states and culture.
   >
-  > Points from both add up on the board. Your first three Quick fire rounds each day count, and a daily streak adds a bonus to your word score.
+  > Then hit the Arcade: darts, archery at the Durbar, street-court basketball, zobo pong, mini golf around Lagos, bottle-cover shuffleboard, knockout on a lagoon raft, tanks over Olumo Rock and paintball in a vulcanizer's tyre yard. Beat the computer to earn points.
+  >
+  > Points from everything add up on the board. Your first three Quick fire rounds and first ten arcade games each day count, and a daily streak adds a bonus to your word score.
   >
   > The shop sells hints (₦100 for 5), streak shields, a word archive and an Owambe colour theme. Hints help you finish a puzzle but take points off it, so the board can't be bought.
 
@@ -105,8 +108,41 @@ Vatar.submitScore(total points), Vatar.leaderboard()
 
 - **Sign-in.** A Vatar session is checked once, then the phone gets a 12-hour Doingz token. Vatar allows 600 API calls a minute per game, so guesses never spend one. Sign-ins are capped at 450 a minute to leave room for purchases. If Doingz takes off, ask Vatar for a higher limit.
 - **Purchases.** Every claim is checked with Vatar: it must be paid, belong to the player asking, and not be refunded. Each purchase id is granted once, even if the phone, the webhook and a reload all claim it.
-- **Pause.** When the phone backgrounds or the pay sheet opens, the Quick fire clock stops. A round can claim back at most 45 seconds, so pausing can't be used to look answers up.
+- **Pause.** When the phone backgrounds or the pay sheet opens, the Quick fire clock stops. A round can claim back at most 45 seconds, so pausing can't be used to look answers up. A paintball round that gets interrupted restarts with fresh pop-ups (three restarts a match).
 - **Days.** A new word arrives at midnight Lagos time. Puzzle 1 is 11 October 2026 (`LAUNCH_DATE`).
+
+## The arcade
+
+```
+Phone                                  Server
+drag / flick ──── move {vx, vy} ────▶  rules.apply(): validate, simulate, score
+                                       computer's turn: rules.cpu() → rules.apply()
+replay each event with the same   ◀──  events [{ inputs, outcome }] + new state
+shared simulation, then show state
+```
+
+- **Rules live in `public/shared/`**, one file per game, and run in both places: the server decides, the phone replays the same simulation to animate it. The simulations only use `+ − × ÷` and `Math.sqrt`, which JavaScript requires to be exact on every engine, so an iPhone, an Android phone and the server agree to the last digit. (`sin`, `cos` and `pow` aren't exact across engines, so they only appear in server-side setup and computer aiming, never inside a simulation.) Anything random, like the wind in Archery or dart wobble, is rolled by the server and sent as data. After every animation the phone snaps to the server's state anyway.
+- **The computer** aims like a person: it solves the shot, then adds human-sized error. Its accuracy was tuned so it wins and loses about evenly against itself, and the basketball computer makes about 59% of shots.
+- **Paintball** is the only real-time game. The server writes each round's pop-up schedule, and only accepts hits on targets that were actually up at that moment, in rounds that lasted their full 30 seconds. Six-shot magazines stop spray-tapping.
+- **Points:** 25 for a win and 10 for a draw, in your first ten arcade games each Lagos day (`ARCADE_SCORED_PER_DAY`). Later games are practice.
+
+### Friend matches
+
+Matches are already seat-based. `arcade_matches.seats` holds `[{ kind: "human", pid }, { kind: "cpu" }]`, every move is checked against the seat whose turn it is, and the rules never know which seats are people. To add friends:
+
+1. Create the match with two human seats from `Vatar.match.create` / `join` (the match's players give you both pids), and add a row per person in `arcade_seats`.
+2. Phones poll `GET /api/arcade/match?id=` (already there) to see the other person's moves, or add a push channel.
+3. When `result()` is set, post the winner to Vatar's `POST /matches/{id}/result` with your results secret (see the Vatar docs), so stakes in game money settle.
+4. Ask Vatar to approve matches for Doingz, and then stakes.
+
+Knockout already resolves simultaneous moves, so it works for two people as it is.
+
+## Adding a game
+
+1. Write `public/shared/<id>.js` with the rules contract described at the top of `public/shared/rules.js`.
+2. Write `public/arcade/<id>.js`: a canvas client exporting `W`, `H`, `scoreOf`, and a default function returning `render`, `play` and `destroy` (copy the closest existing game).
+3. Register it in `server/arcade.js` and give it an icon in `public/arcade/arcade.js`.
+4. `npm test` plays it to the end automatically.
 
 ## Adding content
 
@@ -126,7 +162,10 @@ server/
   db.js           SQLite schema (node:sqlite)
   products.js     shop catalogue
   content/        answers, trivia, guess list
+  arcade.js       arcade matches: seats, computer turns, daily scoring
 public/           the game: index.html, app.js, styles.css, Archivo font (OFL)
+  shared/         arcade rules and physics, shared by the server and the phone
+  arcade/         arcade screens: the canvas kit and one client per game
 listing/          icon and screenshots for the Vatar listing
 test/             npm test
 ```

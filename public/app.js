@@ -1,4 +1,5 @@
 // Doingz client. Talks to Lagos Life through the Vatar SDK, and to our own server for the game itself.
+import { createArcade } from "/arcade/arcade.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -186,6 +187,8 @@ async function buy(id) {
 
 // Re-draw whatever is on screen after something changed outside it (a purchase, a resume).
 function refresh() {
+  if (S.tab === "arcade-game") return; // a game in progress redraws itself
+  if (S.tab === "arcade") return arcade.renderList();
   if (S.tab === "shop") return renderShop();
   if (S.tab === "home") return renderHome();
   if (S.tab === "word" && S.word) return drawWord();
@@ -594,6 +597,7 @@ function renderShop() {
 
 async function onPause() {
   S.paused = true;
+  if (S.tab === "arcade-game") arcade.pause();
   if (S.tab === "trivia" && S.round?.question) {
     stopClock();
     $("#paused").hidden = false;
@@ -604,6 +608,7 @@ async function onPause() {
 async function onResume() {
   S.paused = false;
   $("#paused").hidden = true;
+  if (S.tab === "arcade-game") arcade.resume();
   if (S.tab === "trivia" && S.round?.question) {
     try {
       S.round = (await api("/api/trivia/resume", { roundId: S.round.roundId })).round;
@@ -615,8 +620,10 @@ async function onResume() {
 // ---------- navigation ----------
 
 document.addEventListener("click", (ev) => {
-  const t = ev.target.closest("[data-go],[data-tab],[data-buy],[data-opt],[data-key],[data-tab-go]");
+  const t = ev.target.closest("[data-go],[data-tab],[data-buy],[data-opt],[data-key],[data-tab-go],[data-arcade]");
   if (!t) return;
+  if (t.dataset.arcade) return arcade.open(t.dataset.arcade);
+  if (S.tab === "arcade-game" && (t.dataset.go || t.dataset.tab)) arcade.leave();
   if (t.dataset.key) return pressKey(t.dataset.key);
   if (t.dataset.opt != null) return answer(Number(t.dataset.opt));
   if (t.dataset.buy) return buy(t.dataset.buy);
@@ -628,6 +635,7 @@ document.addEventListener("click", (ev) => {
     case "past": return openWord(Number(t.dataset.day));
     case "archive": return renderArchive();
     case "trivia": return startRound();
+    case "arcade": return arcade.renderList();
     case "board": return renderBoard();
     case "shop": return renderShop();
     case "hint": return useHint();
@@ -650,6 +658,13 @@ document.addEventListener("keydown", (ev) => {
     const b = $$(".option")[Number(ev.key) - 1];
     if (b && !b.classList.contains("gone")) answer(Number(ev.key) - 1);
   }
+});
+
+// ---------- arcade ----------
+
+const arcade = createArcade({
+  api, screen, toast, esc, fmt, plural, setTab,
+  showTabs: (on) => { $("#tabs").hidden = !on; },
 });
 
 // ---------- start ----------

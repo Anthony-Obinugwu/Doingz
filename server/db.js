@@ -72,11 +72,36 @@ export function openDb(dataDir) {
       delivered_at INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS arcade_matches (
+      id TEXT PRIMARY KEY,
+      game TEXT NOT NULL,
+      seats TEXT NOT NULL,               -- [{ kind: "human", pid } | { kind: "cpu" }]
+      state TEXT NOT NULL,               -- the game's state, including its rng
+      status TEXT NOT NULL DEFAULT 'playing',  -- playing | done | abandoned
+      scored INTEGER NOT NULL DEFAULT 0,
+      result TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS arcade_by_owner ON arcade_matches (status, game);
+
+    CREATE TABLE IF NOT EXISTS arcade_seats (
+      match_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      seat INTEGER NOT NULL,
+      PRIMARY KEY (match_id, seat)
+    );
+    CREATE INDEX IF NOT EXISTS arcade_seats_player ON arcade_seats (player_id);
+
     CREATE TABLE IF NOT EXISTS webhook_events (
       id TEXT PRIMARY KEY,
       received_at INTEGER NOT NULL
     );
   `);
+  // Columns added after launch: add them to databases created before they existed.
+  const cols = new Set(db.prepare("PRAGMA table_info(players)").all().map((c) => c.name));
+  if (!cols.has("arcade_day")) db.exec("ALTER TABLE players ADD COLUMN arcade_day INTEGER");
+  if (!cols.has("arcade_scored")) db.exec("ALTER TABLE players ADD COLUMN arcade_scored INTEGER NOT NULL DEFAULT 0");
   return db;
 }
 

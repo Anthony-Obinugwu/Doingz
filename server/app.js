@@ -8,6 +8,7 @@ import { issueToken, readToken } from "./token.js";
 import { VatarError, webhookSigned } from "./vatar.js";
 import { PRODUCTS } from "./products.js";
 import * as G from "./game.js";
+import * as A from "./arcade.js";
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 const TYPES = {
@@ -173,6 +174,21 @@ export function createApp({ config, db, vatar, now = () => Date.now(), log = con
     "POST /api/trivia/fifty": (req, body) => G.fiftyTrivia(db, playerFrom(req), body.roundId, now()),
     "POST /api/trivia/pause": (req, body) => G.pauseTrivia(db, playerFrom(req), body.roundId, now()),
     "POST /api/trivia/resume": (req, body) => G.resumeTrivia(db, playerFrom(req), body.roundId, now()),
+
+    // The arcade: skill games against the computer (seat-based, ready for friend matches).
+    "GET /api/arcade": (req) => {
+      const pid = playerFrom(req);
+      return {
+        games: A.listGames(),
+        live: A.liveMatches(db, pid, now()),
+        rules: { scoredPerDay: A.ARCADE_SCORED_PER_DAY, win: A.WIN_POINTS, draw: A.DRAW_POINTS },
+        player: G.publicPlayer(db, G.getPlayer(db, pid), today()),
+      };
+    },
+    "POST /api/arcade/start": (req, body) => A.startMatch(db, playerFrom(req), String(body.game || ""), now()),
+    "POST /api/arcade/move": (req, body) => A.moveMatch(db, playerFrom(req), body.matchId, body.move, now()),
+    "POST /api/arcade/forfeit": (req, body) => A.forfeitMatch(db, playerFrom(req), body.matchId, now()),
+    "GET /api/arcade/match": (req, body, url) => A.getMatch(db, playerFrom(req), url.searchParams.get("id")),
 
     // The phone says "I paid for this": we check it with Vatar before giving anything.
     "POST /api/claim": async (req, body) => {

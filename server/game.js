@@ -83,6 +83,8 @@ export function wordPoints(guessCount, hintsUsed, streak) {
 
 // ---------- players ----------
 
+const ARCADE_PER_DAY = 10; // matches arcade.js ARCADE_SCORED_PER_DAY
+
 const parse = (s, fallback) => {
   try { return JSON.parse(s); } catch { return fallback; }
 };
@@ -153,6 +155,7 @@ export function publicPlayer(db, p, today) {
     bestStreak: p.best_streak,
     owns: parse(p.owns, []),
     triviaScoredLeft: Math.max(0, TRIVIA_SCORED_PER_DAY - p.trivia_scored),
+    arcadeScoredLeft: Math.max(0, ARCADE_PER_DAY - (p.arcade_day === today ? p.arcade_scored || 0 : 0)),
   };
 }
 
