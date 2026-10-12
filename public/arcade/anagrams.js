@@ -1,5 +1,5 @@
 import G from "/shared/anagrams.js";
-import { onTap, popup, slab, label, INK, PAPER, DANFO, GREEN, RED, BLUE } from "./kit.js";
+import { onTap, popup, slab, label, sfx, note, haptic, burst, INK, PAPER, DANFO, GREEN, RED, BLUE } from "./kit.js";
 import { startRound, foundListHtml, summaryHtml } from "./wordround.js";
 
 export const W = G.W;
@@ -63,9 +63,14 @@ export default function anagrams({ stage, seat, canMove, submit, hint, bar }) {
       const pts = G.points(w.length) * (st === "naija" ? 2 : 1);
       round.add(w, pts);
       flash = GREEN;
+      sfx("good");
+      haptic(12);
+      burst(stage, W / 2, ANSWER_Y, { colors: [GREEN, DANFO, PAPER], n: 10 + w.length * 3, up: 100 });
       popup(stage, draw, st === "naija" ? `Naija word! +${pts}` : `+${pts}`, W / 2, 330, DANFO);
     } else {
       flash = st === "again" ? DANFO : RED;
+      sfx(st === "again" ? "meh" : "bad");
+      if (st !== "again") haptic([10, 40, 10]);
       hint(st === "again" ? "Already found" : w.length < 3 ? "Three letters or more" : "Not in the word list");
     }
     setTimeout(() => { flash = null; typed = []; draw(); setBar(); hint(G.how); }, 280);
@@ -108,9 +113,10 @@ export default function anagrams({ stage, seat, canMove, submit, hint, bar }) {
     if (k < 0 || k > 5) return;
     if (Math.abs(y - TILES_Y) < SLOT / 2 + 6) {
       const i = order[k];
-      if (!typed.includes(i)) { typed.push(i); draw(); }
+      if (!typed.includes(i)) { typed.push(i); note(typed.length - 1); draw(); }
     } else if (Math.abs(y - ANSWER_Y) < SLOT / 2 + 6 && k < typed.length) {
       typed.splice(k, 1);
+      sfx("tap");
       draw();
     }
   });

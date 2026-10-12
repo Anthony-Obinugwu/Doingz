@@ -1,5 +1,5 @@
 // Arcade screens: the game list, and the frame every game plays inside.
-import { makeStage } from "./kit.js";
+import { makeStage, sfx, haptic, confetti, isMuted, setMuted } from "./kit.js";
 
 // Small original icons for the game tiles (inline SVG, flat colours, ink outlines).
 const I = (body) => `<svg viewBox="0 0 64 64" aria-hidden="true" stroke="#1d1b16" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">${body}</svg>`;
@@ -67,7 +67,13 @@ export function createArcade(app) {
 
       <section class="panel people">
         <h2 class="big">Play with people</h2>
-        ${d.friends.length ? `<div class="stack">${d.friends.map((f) => `<button class="btn" data-friend-match="${f.id}">Back to your ${esc(title(f.game))} game</button>`).join("")}</div>` : ""}
+        ${d.friends.length ? `<div class="thread" aria-label="Your friend games">${d.friends.map((f) => `
+          <button class="bubble ${f.yourMove ? "in" : "out"}" data-friend-match="${f.id}">
+            <span class="bubble-icon">${ICONS[f.game] || ""}</span>
+            <span class="bubble-text"><b>${esc(title(f.game))}</b>
+              <small>${f.yourMove ? `${esc(f.them)} played · <strong>Your move</strong>` : `Sent · waiting for ${esc(f.them)}`}</small></span>
+            ${f.yourMove ? `<i class="badge" aria-hidden="true">1</i>` : ""}
+          </button>`).join("")}</div>` : ""}
         ${picking ? `<p class="pick-note"><b>${picking === "friend" ? "Now pick a game to challenge your friend to." : "Now pick a game. If someone's already waiting, you'll play their game."}</b>
             <button class="linkish" data-people="cancel">Cancel</button></p>` : `
           <div class="people-actions">
@@ -87,19 +93,25 @@ export function createArcade(app) {
         <h2 class="arcade-section">${heading}</h2>
         <div class="arcade-grid">
           ${d.games.filter((g) => g.kind === kind).map((g) => `
-            <button class="game-tile${picking ? " picking" : ""}" data-arcade="${g.id}">
-              ${ICONS[g.id] || ""}
+            <button class="game-tile${picking ? " picking" : ""}" data-arcade="${g.id}" title="${esc(g.blurb)}">
+              <span class="app-icon">${ICONS[g.id] || ""}</span>
               <b>${esc(g.title)}</b>
-              <span>${esc(g.blurb)}</span>
-              ${d.live[g.id] && !picking ? `<em>Carry on</em>` : ""}
+              ${d.live[g.id] && !picking ? `<em aria-label="Game in progress">▶</em>` : ""}
             </button>`).join("")}
         </div>`).join("")}`);
   }
 
   // Taps inside the people panel (the app's own click handler routes data-arcade to tapGame).
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-resign]");
+    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-resign],[data-sound]");
     if (!t) return;
+    if (t.dataset.sound !== undefined) {
+      setMuted(!isMuted());
+      t.textContent = isMuted() ? "🔇" : "🔊";
+      t.setAttribute("aria-pressed", String(!isMuted()));
+      sfx("tap");
+      return;
+    }
     if (t.dataset.people === "cancel") { picking = null; return renderList(); }
     if (t.dataset.people) { picking = t.dataset.people; return renderList(); }
     if (t.dataset.stake !== undefined) { stake = Number(t.dataset.stake); return renderList(); }
@@ -271,6 +283,9 @@ export function createArcade(app) {
   }
   function defaultStatus() {
     if (!cur) return;
+    const mine = myTurn(), playing = cur.match.status === "playing";
+    document.getElementById("pl-me")?.classList.toggle("on", playing && mine);
+    document.getElementById("pl-them")?.classList.toggle("on", playing && !mine);
     if (cur.match.status !== "playing") return setStatus("Game over");
     if (myTurn()) return setStatus(cur.hint || cur.mod.how || "Your turn");
     if (!cur.match.multi) return setStatus("Computer is playing…");
@@ -286,7 +301,7 @@ export function createArcade(app) {
     document.getElementById("score-unit").textContent = s.unit || "";
   }
 
-  function showResult() {
+  function showResult(fresh = true) {
     const m = cur.match;
     const r = m.result;
     if (!r) return;
@@ -301,9 +316,16 @@ export function createArcade(app) {
     if (r.timeout !== undefined) note = r.timeout === m.seat ? "You ran out of time." : `${them} went quiet, so the win is yours.`;
     clearTimeout(cur.poll);
     document.querySelector("[data-resign]")?.remove();
+    if (fresh) {
+      if (won) { sfx("win"); haptic([20, 50, 20, 50, 60]); if (cur.stage) confetti(cur.stage, 110); }
+      else if (draw) sfx("draw");
+      else { sfx("lose"); haptic(60); }
+    }
     const box = document.getElementById("game-result");
     box.hidden = false;
+    box.className = `game-result ${won ? "won" : draw ? "drew" : "lost"}`;
     box.innerHTML = `<div class="panel result-card">
+      <p class="result-burst" aria-hidden="true">${won ? "🏆" : draw ? "🤝" : "😮‍💨"}</p>
       <h2 class="big">${esc(head)}</h2>
       ${note ? `<p>${esc(note)}</p>` : ""}
       <p><b>${m.scored ? (pts ? `+${pts} points` : "No points this time") : "Practice game: no points"}</b></p>
@@ -337,15 +359,17 @@ export function createArcade(app) {
     const g = (meta?.games || []).find((x) => x.id === id) || { title: id };
     screen(`
       <div class="game">
+        <span class="grabber" aria-hidden="true"></span>
         <div class="row">
           <button class="back" data-go="arcade">‹ Arcade</button>
           ${match.multi && match.status === "playing" ? `<button class="linkish" data-resign>Resign</button>` : ""}
+          <button class="sound" data-sound aria-pressed="${!isMuted()}" aria-label="Sound">${isMuted() ? "🔇" : "🔊"}</button>
           <span class="chip">${match.multi ? "Friend game" : match.scored ? "Scored game" : "Practice"}</span>
         </div>
-        <div class="score-strip">
-          <div><span>You</span><b id="score-a">0</b></div>
-          <div class="game-name"><b>${esc(g.title)}</b><span id="score-unit"></span></div>
-          <div><span>${esc(match.names[1 - match.seat])}</span><b id="score-b">0</b></div>
+        <div class="versus">
+          <div class="player" id="pl-me"><span class="avatar">${esc(initial("You"))}</span><span class="pname">You</span><b id="score-a">0</b></div>
+          <div class="vs-mid"><b>${esc(g.title)}</b><span id="score-unit"></span></div>
+          <div class="player them" id="pl-them"><span class="avatar">${esc(initial(match.names[1 - match.seat]))}</span><span class="pname">${esc(match.names[1 - match.seat])}</span><b id="score-b">0</b></div>
         </div>
         <p class="game-status" id="game-status" aria-live="polite"></p>
         <div class="stage-box" id="stage-box"><div class="game-result" id="game-result" hidden></div></div>
@@ -365,12 +389,43 @@ export function createArcade(app) {
       submit,
       hint: (t) => { me.hint = t; defaultStatus(); },
       toast,
+      them: () => me.match.names[1 - me.match.seat],
     });
     cur.inst.render(match);
     updateScore();
     defaultStatus();
-    if (match.status !== "playing") showResult();
+    if (match.status !== "playing") showResult(false);
+    else banner(myTurn() ? "Your turn" : `${opponent()}'s turn`, myTurn() ? "go" : "wait");
     if (match.multi) schedulePoll(me);
+  }
+
+  const initial = (name) => (name === "Computer" ? "🤖" : name === "You" ? "Me" : String(name).trim().slice(0, 1).toUpperCase() || "?");
+
+  /** A big slab that drops in over the board for a moment: "Your turn", "Sent", "You win!". */
+  function banner(text, kind = "go", ms = 1100) {
+    const box = document.getElementById("stage-box");
+    if (!box) return;
+    box.querySelector(".banner")?.remove();
+    const b = document.createElement("div");
+    b.className = `banner ${kind}`;
+    b.setAttribute("aria-hidden", "true");
+    b.textContent = text;
+    box.append(b);
+    if (kind === "go") { sfx("turn"); haptic([10, 60, 10]); }
+    if (ms) setTimeout(() => b.remove(), ms);
+    return b;
+  }
+
+  /** iMessage-style: after your move in a friend game, a little bubble flies off to say it's been sent. */
+  function sentBubble() {
+    const box = document.getElementById("stage-box");
+    if (!box) return;
+    const b = document.createElement("div");
+    b.className = "sent-bubble";
+    b.textContent = `Sent to ${opponent()} ✓`;
+    box.append(b);
+    sfx("sent");
+    setTimeout(() => b.remove(), 1600);
   }
 
   // Friend games: while it's their turn, check for their moves every couple of seconds.
@@ -391,6 +446,7 @@ export function createArcade(app) {
         // Nothing new: leave the board alone so a drag or a half-typed word isn't disturbed.
         return schedulePoll(me, 5000);
       }
+      const wasMine = mine;
       if (d.events.length) {
         me.busy = true;
         const before = me.match;
@@ -405,6 +461,7 @@ export function createArcade(app) {
       updateScore();
       defaultStatus();
       if (d.match.status !== "playing") return showResult();
+      if (!wasMine && myTurn()) banner("Your turn", "go");
     } catch { /* network blip: try again */ }
     schedulePoll(me);
   }
@@ -428,7 +485,7 @@ export function createArcade(app) {
       me.inst.render(d.match);
       updateScore();
       if (d.match.status !== "playing") showResult();
-      else if (d.match.multi) schedulePoll(me);
+      else if (d.match.multi) { if (!d.match.toMove.includes(d.match.seat)) sentBubble(); schedulePoll(me); }
       return d;
     } catch (e) {
       toast(e.message || "That didn't go through");

@@ -1,5 +1,5 @@
 import G from "/shared/archery.js";
-import { onDrag, loop, tween, sleep, popup, slab, disc, label, arrow, INK, PAPER, RED, BLUE, DANFO, SKY, LEAF, WOOD, GREEN } from "./kit.js";
+import { onDrag, loop, tween, sleep, popup, slab, disc, label, arrow, INK, PAPER, RED, BLUE, DANFO, SKY, LEAF, WOOD, GREEN, sfx, haptic, shake, burst } from "./kit.js";
 
 export const W = G.W;
 export const H = G.H;
@@ -112,7 +112,10 @@ export default function archery({ stage, seat, canMove, submit, hint }) {
         if (e.type !== "arrow") continue;
         const tx = TX + e.x * TR, ty = TY + e.y * TR;
         view = { ...before.view, wind: e.wind };
+        sfx("whoosh");
         await tween(320, (p) => draw(() => stuckArrow(180 + (tx - 180) * p, 470 + (ty - 470) * p, e.seat, 2.4 - 1.4 * p)));
+        if (e.value) { sfx("thunk"); haptic(16); shake(stage, e.value >= 9 ? 6 : 3, 240); burst(stage, tx, ty, { colors: [DANFO, PAPER], n: e.value >= 9 ? 20 : 8, speed: 170, up: 40, size: 3.5 }); }
+        else sfx("place");
         before = { view: { ...before.view, shots: [...before.view.shots, { seat: e.seat, x: e.x, y: e.y }] } };
         view = { ...before.view, wind: e.wind };
         await popup(stage, draw, e.value === 10 ? "10!" : e.value ? String(e.value) : "Miss", Math.min(320, Math.max(40, tx)), Math.max(40, ty - 26));

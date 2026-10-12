@@ -1,5 +1,5 @@
 import G, { SLOTS, ROUND_MS } from "/shared/paintball.js";
-import { loop, sleep, popup, slab, disc, label, INK, PAPER, RED, BLUE, GREEN, DANFO, PINK, SAND, GREY } from "./kit.js";
+import { loop, sleep, popup, slab, disc, label, INK, PAPER, RED, BLUE, GREEN, DANFO, PINK, SAND, GREY, sfx, haptic, burst } from "./kit.js";
 
 export const W = G.W;
 export const H = G.H;
@@ -12,7 +12,7 @@ const UP_MS = 130;
 const MAG = 6;            // shots before a reload, so spraying taps doesn't win
 const RELOAD_MS = 1100;
 
-export default function paintball({ stage, seat, canMove, submit, hint, bar }) {
+export default function paintball({ stage, seat, canMove, submit, hint, bar, them = () => "Computer" }) {
   const { ctx } = stage;
   let view = null;
   let run = null;           // { pops, t0, hits:Set, splats:[], stop }
@@ -141,8 +141,9 @@ export default function paintball({ stage, seat, canMove, submit, hint, bar }) {
     if (!run) return;
     const [x, y] = stage.toLocal(e);
     const t = performance.now() - run.t0;
-    if (run.reloadAt || run.ammo <= 0) return;
+    if (run.reloadAt || run.ammo <= 0) { sfx("tick"); return; }
     run.ammo -= 1;
+    sfx("tap");
     if (run.ammo === 0) run.reloadAt = t + RELOAD_MS;
     for (const p of run.pops) {
       if (run.hits.has(p.id)) continue;
@@ -155,6 +156,9 @@ export default function paintball({ stage, seat, canMove, submit, hint, bar }) {
         run.hitList.push({ id: p.id, t: Math.round(t) });
         run.splats.push({ x, y, t, friend: p.friend });
         run.score += p.friend ? -1 : 1;
+        sfx(p.friend ? "bad" : "splat");
+        haptic(p.friend ? [20, 30, 20] : 12);
+        burst(stage, x, y, { colors: p.friend ? [RED, PAPER] : [PINK, DANFO, GREEN], n: 12, speed: 200, up: 30, size: 4 });
         return;
       }
     }
@@ -172,7 +176,7 @@ export default function paintball({ stage, seat, canMove, submit, hint, bar }) {
     async play(events) {
       for (const e of events) {
         if (e.type !== "round_end") continue;
-        const who = e.seat === seat ? "You" : "Computer";
+        const who = e.seat === seat ? "You" : them();
         await popup(stage, () => draw(0), `${who}: ${e.score} splats`, W / 2, 200, e.seat === seat ? DANFO : PAPER);
         await sleep(200);
       }

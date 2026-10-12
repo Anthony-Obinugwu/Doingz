@@ -39,7 +39,7 @@ const game = {
   id: "darts",
   title: "Darts",
   blurb: "Race from 201 to zero. Don't go under.",
-  how: "Hold to aim, let go to throw. The sight moves with your hand.",
+  how: "Hold to pick up a dart, slide to aim, then flick up to throw.",
   W: 360,
   H: 460,
 

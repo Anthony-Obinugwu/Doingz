@@ -13,7 +13,7 @@ const game = {
   id: "pong",
   title: "Zobo Pong",
   blurb: "Six cups of zobo. Two balls a turn. Clear them first.",
-  how: "Swipe up to throw. Longer swipes go further.",
+  how: "Pick up the ball and flick it at the cups. Longer flicks go further.",
   W: 360,
   H: 540,
 

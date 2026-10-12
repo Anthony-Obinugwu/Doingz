@@ -53,7 +53,7 @@ const game = {
   id: "basketball",
   title: "Basketball",
   blurb: "Street court shootout. Six shots each, threes from deep.",
-  how: "Drag back from the ball and let go to shoot.",
+  how: "Put your finger on the ball and swipe it toward the hoop.",
   W,
   H,
 

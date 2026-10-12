@@ -8,7 +8,7 @@ export const scoreOf = (v) => ({ mine: v.sunkCount[v.seat], theirs: v.sunkCount[
 const BIG = 32, BX = (360 - BIG * N) / 2, BY = 36;
 const SMALL = 19, SX = (360 - SMALL * N) / 2, SY = 352;
 
-export default function seabattle({ stage, seat, canMove, submit, hint, bar }) {
+export default function seabattle({ stage, seat, canMove, submit, hint, bar, them = () => "Computer" }) {
   const { ctx } = stage;
   let view = null;
 
@@ -88,7 +88,7 @@ export default function seabattle({ stage, seat, canMove, submit, hint, bar }) {
         const mine = e.seat === seat;
         const text = e.sank >= 0 ? `${mine ? "Sunk their" : "They sank your"} ${e.name.toLowerCase()}!` : e.hit ? "Hit!" : "Splash";
         await popup(stage, draw, text, W / 2, mine ? 190 : 330, e.hit ? DANFO : PAPER);
-      }, { mine: 100, theirs: 300 });
+      }, { mine: 100, theirs: 300, sound: (e) => (e.type !== "shot" ? "place" : e.hit ? "boom" : "splash") });
     },
     destroy() { offTap(); bar.innerHTML = ""; },
   };

@@ -15,7 +15,7 @@ function pitXY(i) {
   return [X0 + (11 - i) * GAP, ROW_Y[1]];
 }
 
-export default function ayo({ stage, seat, canMove, submit, hint }) {
+export default function ayo({ stage, seat, canMove, submit, hint, them = () => "Computer" }) {
   const { ctx } = stage;
   let view = null;
 
@@ -42,7 +42,7 @@ export default function ayo({ stage, seat, canMove, submit, hint }) {
       label(ctx, String(view.pits[i]), x, y + (i < 6 ? 36 : -36), { size: 13, color: PAPER, weight: 800 });
       if (can.includes(i)) { ctx.lineWidth = 3; ctx.strokeStyle = DANFO; ctx.beginPath(); ctx.arc(x, y, PIT_R + 4, 0, Math.PI * 2); ctx.stroke(); }
     }
-    label(ctx, "Computer's pits", W / 2, 70, { size: 15, color: PAPER });
+    label(ctx, `${them()}'s pits`, W / 2, 70, { size: 15, color: PAPER });
     label(ctx, "Your pits", W / 2, 322, { size: 15, color: PAPER });
     label(ctx, "Seeds travel anticlockwise ↺", W / 2, 344, { size: 12, color: "rgba(255,253,244,0.75)", weight: 700 });
   }

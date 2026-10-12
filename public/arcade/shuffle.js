@@ -1,5 +1,5 @@
 import G, { simulate, ZONES, LEFT, RIGHT, END, START, PUCK_R, MAX_V } from "/shared/shuffle.js";
-import { onDrag, playFrames, sleep, popup, slab, label, arrow, INK, PAPER, RED, BLUE, DANFO, SAND } from "./kit.js";
+import { onFlick, streak, playFrames, sleep, popup, slab, label, sfx, haptic, shake, burst, INK, PAPER, RED, BLUE, DANFO, SAND, GREEN } from "./kit.js";
 
 export const W = G.W;
 export const H = G.H;
@@ -10,7 +10,8 @@ export const scoreOf = (v, seat) => ({
   unit: v.round < 3 ? `round ${v.round + 1} of 3` : "points",
 });
 
-const PULL = 3.4;
+const POWER = 3.4;  // swipe length to launch speed
+const REACH = 60;
 const ZONE_TINT = ["#ffd75e", "#ffe7a0", "#fff1c9"];
 
 export default function shuffle({ stage, seat, canMove, submit, hint }) {
@@ -78,30 +79,48 @@ export default function shuffle({ stage, seat, canMove, submit, hint }) {
     for (const p of list) if (p.alive !== false && p.alive !== 0) cover(p.x, p.y, p.seat);
     hud();
     if (!pucks && canMove()) {
-      cover(START[0], START[1], seat);
       if (drag) {
-        let vx = (drag.x0 - drag.x) * PULL, vy = (drag.y0 - drag.y) * PULL;
+        const [vx, vy] = velocity(drag);
         const l = Math.hypot(vx, vy);
-        if (l > MAX_V) { vx = (vx * MAX_V) / l; vy = (vy * MAX_V) / l; }
-        arrow(ctx, START[0], START[1], START[0] + vx / 4.5, START[1] + vy / 4.5, l > 820 ? RED : DANFO, 5);
+        streak(ctx, drag.trail, PAPER);
+        const dx = drag.x - drag.x0, dy = drag.y - drag.y0, d = Math.hypot(dx, dy) || 1, k = Math.min(1, REACH / d);
+        cover(START[0] + dx * k, START[1] + dy * k, seat);
+        // power meter: green is safe, red slides off the end
+        const p = Math.min(1, l / MAX_V);
+        slab(ctx, W - 30, 250, 16, 150, PAPER, { r: 8, shadow: 3, line: 2.5 });
+        slab(ctx, W - 30, 250 + 150 * (1 - p), 16, 150 * p, l > 820 ? RED : GREEN, { r: 8, shadow: 0, line: 2.5 });
+      } else {
+        cover(START[0], START[1], seat);
+        label(ctx, "Swipe up ↑", START[0], START[1] + 34, { size: 14, color: INK });
       }
     }
     extra?.();
   }
 
-  const off = onDrag(stage, {
-    down(x, y) { if (canMove()) { drag = { x0: x, y0: y, x, y }; draw(); } },
-    move(x, y) { if (drag) { drag.x = x; drag.y = y; draw(); } },
-    up(x) {
-      if (!drag) return;
-      let vx = (drag.x0 - drag.x) * PULL, vy = (drag.y0 - drag.y) * PULL;
+  // Push the cover forward with your finger and let go: the swipe is the shot.
+  const velocity = (d) => {
+    let vx = (d.x - d.x0) * POWER, vy = (d.y - d.y0) * POWER;
+    const l = Math.hypot(vx, vy);
+    if (l > MAX_V) { vx = (vx * MAX_V) / l; vy = (vy * MAX_V) / l; }
+    return [vx, vy];
+  };
+  const off = onFlick(stage, {
+    grab(x, y) {
+      if (!canMove() || Math.hypot(x - START[0], y - START[1]) > 70) return false;
+      drag = { x0: x, y0: y, x, y, trail: null };
+      draw();
+      return true;
+    },
+    move(x, y, trail) { drag.x = x; drag.y = y; drag.trail = trail; draw(); },
+    release() {
+      const [vx, vy] = velocity(drag);
       drag = null;
       draw();
-      if (x === null || vy > -60) return;
-      const l = Math.hypot(vx, vy);
-      if (l > MAX_V) { vx = (vx * MAX_V) / l; vy = (vy * MAX_V) / l; }
+      if (vy > -60) { hint("Swipe the cover up the board."); return; }
+      sfx("slide");
       submit({ vx, vy });
     },
+    cancel() { drag = null; draw(); },
   });
 
   stage.onResize = () => draw();
@@ -121,12 +140,29 @@ export default function shuffle({ stage, seat, canMove, submit, hint }) {
         simulate(pucks, frames);
         const seats = pucks.map((p) => p.seat);
         if (e.seat !== seat) { draw(null, e.before); await sleep(350); }
-        await playFrames(frames, (f) => draw(null, f.map(([x, y, a], i) => ({ x, y, alive: a, seat: seats[i] }))));
+        if (e.seat !== seat) sfx("slide");
+        let prev = null;
+        await playFrames(frames, (f) => {
+          draw(null, f.map(([x, y, a], i) => ({ x, y, alive: a, seat: seats[i] })));
+          // a clack when covers hit each other (a sudden change in a cover's speed), a drop when one goes off
+          if (prev) f.forEach(([x, y, a], i) => {
+            const [px, py, pa] = prev[i] || [x, y, a];
+            if (pa && !a) { sfx("meh"); }
+            if (i < f.length - 1 && a && Math.hypot(x - px, y - py) > 0.5 && pa) {
+              const q = prev.__v?.[i];
+              const v = Math.hypot(x - px, y - py);
+              if (q !== undefined && v > q + 1.2) { sfx("click"); haptic(10); burst(stage, x, y, { color: PAPER, n: 6, speed: 120, up: 0, g: 0, size: 3 }); }
+            }
+          });
+          const vs = f.map(([x, y], i) => (prev ? Math.hypot(x - prev[i][0], y - prev[i][1]) : 0));
+          prev = f.map((p) => p.slice());
+          prev.__v = vs;
+        });
         v = { ...v, thrown, pucks: e.after };
         if (e.roundOver) {
           view = { ...v, pucks: e.after };
           const [a, b] = [e.roundPoints[seat], e.roundPoints[1 - seat]];
-          await popup(stage, () => draw(null, e.after), `Round: you ${a}, them ${b}`, W / 2, 300);
+          await popup(stage, () => draw(null, e.after), `Round: you ${a}, them ${b}`, W / 2, 300, a > b ? DANFO : PAPER);
           await sleep(300);
           v = { ...v, pucks: [], thrown: [0, 0] };
         }

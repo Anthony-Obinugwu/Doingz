@@ -9,7 +9,7 @@ const CW = 52, CH = 74;
 const isRed = (c) => cardSuit(c) === 1 || cardSuit(c) === 2;
 const playableIn = (v, c) => isEight(c) || cardSuit(c) === v.suit || cardRank(c) === cardRank(v.top);
 
-export default function crazy8({ stage, seat, canMove, submit, hint, bar }) {
+export default function crazy8({ stage, seat, canMove, submit, hint, bar, them = () => "Computer" }) {
   const { ctx } = stage;
   let view = null;
   let choosing = null; // an 8 waiting for its suit
@@ -45,7 +45,7 @@ export default function crazy8({ stage, seat, canMove, submit, hint, bar }) {
     // their hand
     const n = view.theirs;
     for (let k = 0; k < Math.min(n, 10); k++) back(24 + k * Math.min(30, (W - 48 - CW) / Math.max(1, Math.min(n, 10) - 1)), 16);
-    label(ctx, `Computer: ${n} card${n === 1 ? "" : "s"}`, W / 2, 106, { size: 15, color: PAPER });
+    label(ctx, `${them()}: ${n} card${n === 1 ? "" : "s"}`, W / 2, 106, { size: 15, color: PAPER });
     // deck and top card
     back(96, 140);
     label(ctx, `${view.deck} left`, 96 + CW / 2, 140 + CH + 14, { size: 13, color: PAPER });
@@ -104,10 +104,10 @@ export default function crazy8({ stage, seat, canMove, submit, hint, bar }) {
         view = snap;
         draw();
         if (e.seat !== seat) {
-          const text = e.type === "play" ? (isEight(e.card) ? `Crazy 8! ${SUITS[e.suit]}︎` : "Computer plays") : e.type === "draw" ? "Computer draws" : "Computer passes";
+          const text = e.type === "play" ? (isEight(e.card) ? `Crazy 8! ${SUITS[e.suit]}︎` : `${them()} plays`) : e.type === "draw" ? `${them()} draws` : `${them()} passes`;
           await popup(stage, draw, text, W / 2, 250, DANFO);
         }
-      }, { mine: 120, theirs: 250 });
+      }, { mine: 120, theirs: 250, sound: "card" });
     },
     destroy() { offTap(); bar.innerHTML = ""; },
   };

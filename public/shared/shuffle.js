@@ -75,7 +75,7 @@ const game = {
   id: "shuffle",
   title: "Shuffleboard",
   blurb: "Flick bottle covers into the zones. Knock theirs off.",
-  how: "Drag back from the cover and let go. Too hard and it falls off.",
+  how: "Put your finger on the cover and swipe it up the board. Too hard and it falls off.",
   W,
   H,
 

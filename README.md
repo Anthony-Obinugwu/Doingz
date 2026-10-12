@@ -138,6 +138,15 @@ shared simulation, then show state
 - **Word Hunt and Anagrams** check words on the server against a 40,536-word list (`server/content/valid.txt`); the phone only gets salted fingerprints of the words on its board, so it can say "not a word" instantly without being able to list the answers. The computer plays its round on the server and finds a share of the words a decent player would. Missed words show after the game.
 - **20 Questions** has 86 things and 85 yes/no questions (`public/shared/twenty-kb.js`), every thing distinguishable from every other. Answers are checked against the facts, so nobody can lie their way out; the computer asks the question that splits the remaining things best, with a little randomness.
 
+### How it feels to play
+
+The arcade borrows the habits of iMessage games, so it feels familiar to anyone who has played GamePigeon:
+
+- **Throw games are flicks, not sliders.** Basketball, Zobo Pong and Shuffleboard: put your finger on the ball or cover, swipe it where you want it to go, and let go. It follows your finger, leaves a streak, and flies from where you released it. Darts: hold to pick up a dart, slide to aim (the sight sways), flick up to throw. Mini Golf, Knockout and Tanks keep pull-back aiming, which is how those games work in Messages too.
+- **Friend games look like a message thread.** Each game is a bubble: "bayo played · Your move" with a red badge when it's your turn, or a green "Sent · waiting for bayo" when it isn't. After your move a "Sent to bayo ✓" bubble flies off, and when their move arrives a **Your turn** banner drops in.
+- **Juice.** Every game has synthesised sound (no audio files), short vibrations on Android phones, screen shake on big hits, particle bursts (zobo splashes, sparks off the dartboard, paint splats), rising notes as you build a word, a ticking clock in the last ten seconds, and confetti when you win. The 🔊 button in a game turns sound and vibration off; the choice is remembered on that phone. Everything respects "reduce motion".
+- **The game opens like a sheet** sliding up over the arcade, with you and your opponent at the top and a glow on whoever's turn it is.
+
 ### Friend games
 
 ```

@@ -11,7 +11,7 @@ export const scoreOf = (v, seat) => ({
 
 const CELL = 42, X0 = 12, Y0 = 20;
 
-export default function reversi({ stage, seat, canMove, submit, hint }) {
+export default function reversi({ stage, seat, canMove, submit, hint, them = () => "Computer" }) {
   const { ctx } = stage;
   let view = null;
 
@@ -65,7 +65,7 @@ export default function reversi({ stage, seat, canMove, submit, hint }) {
         view = { ...snap, last: e.i };
         draw([e.i, ...e.flipped]);
         if (e.passed !== null && e.passed !== undefined) {
-          await popup(stage, () => draw(), e.passed === seat ? "You have no move: pass" : "Computer has no move", W / 2, H / 2, DANFO);
+          await popup(stage, () => draw(), e.passed === seat ? "You have no move: pass" : `${them()} has no move`, W / 2, H / 2, DANFO);
         }
       }, { mine: 220, theirs: 600 });
       draw();

@@ -1,5 +1,5 @@
 import G, { HOLES, simulate, BALL_R, HOLE_R, MAX_V } from "/shared/golf.js";
-import { onDrag, playFrames, sleep, popup, slab, disc, label, arrow, INK, PAPER, RED, PINK, DANFO, LEAF, WATER } from "./kit.js";
+import { onDrag, playFrames, sleep, popup, slab, disc, label, arrow, INK, PAPER, RED, PINK, DANFO, LEAF, WATER, sfx, haptic, burst, confetti } from "./kit.js";
 
 export const W = G.W;
 export const H = G.H;
@@ -14,7 +14,7 @@ export const scoreOf = (v, seat) => ({
 const PULL = 4.2;
 const DARK = "#2c6e37";
 
-export default function golf({ stage, seat, canMove, submit, hint }) {
+export default function golf({ stage, seat, canMove, submit, hint, them = () => "Computer" }) {
   const { ctx } = stage;
   let view = null;
   let shown = null;       // { hole, ball:[x,y], who }
@@ -112,17 +112,23 @@ export default function golf({ stage, seat, canMove, submit, hint }) {
         if (!shown || shown.hole !== e.hole || shown.who !== e.seat) {
           shown = { hole: e.hole, ball: e.from, who: e.seat };
           draw();
-          if (e.seat !== seat) await popup(stage, () => draw(), "Computer's turn", 180, 270, PINK);
+          if (e.seat !== seat) await popup(stage, () => draw(), `${them()}'s turn`, 180, 270, PINK);
         }
         const frames = [];
         simulate(e.hole, e.from[0], e.from[1], e.vx, e.vy, frames);
+        sfx("click");
         await playFrames(frames, (f) => draw(null, f, e.seat));
         const last = frames[frames.length - 1] || e.from;
         if (e.splash) {
+          sfx("splash"); burst(stage, last[0], last[1], { colors: [WATER, PAPER], n: 18, up: 160 });
           await popup(stage, () => draw(null, last, e.seat), "Splash! +1", last[0], last[1] - 20, WATER);
           shown.ball = e.from;
         } else if (e.holed) {
           shown.ball = null;
+          sfx("place"); haptic([12, 40, 20]);
+          const cup = frames[frames.length - 1] || [e.x, e.y];
+          burst(stage, cup[0], cup[1], { colors: [DANFO, PAPER, LEAF], n: e.stroke === 1 ? 40 : 16, up: 200 });
+          if (e.stroke === 1) confetti(stage, 60);
           await popup(stage, () => draw(null, [-50, -50], e.seat), e.stroke === 1 ? "Hole in one!" : "In!", e.from[0] < 180 ? 220 : 140, 260);
         } else {
           shown.ball = [e.x, e.y];

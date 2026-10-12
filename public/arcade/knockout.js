@@ -1,5 +1,5 @@
 import G, { simulate, CX, CY, PIECE_R, MAX_V, SHRINK, MIN_HALF } from "/shared/knockout.js";
-import { onDrag, playFrames, tween, sleep, popup, slab, disc, arrow, label, INK, PAPER, RED, BLUE, DANFO, WOOD, WATER } from "./kit.js";
+import { onDrag, playFrames, tween, sleep, popup, slab, disc, arrow, label, INK, PAPER, RED, BLUE, DANFO, WOOD, WATER, sfx, haptic, shake, burst } from "./kit.js";
 
 export const W = G.W;
 export const H = G.H;
@@ -112,7 +112,22 @@ export default function knockout({ stage, seat, canMove, submit, hint, bar }) {
         half = e.halfBefore;
         const frames = [];
         simulate(pieces, half, frames);
-        await playFrames(frames, (f) => draw(null, f.map(([x, y, a], i) => ({ ...e.before[i], x, y, alive: a })), half));
+        sfx("whoosh");
+        let prevF = null;
+        await playFrames(frames, (f) => {
+          draw(null, f.map(([x, y, a], i) => ({ ...e.before[i], x, y, alive: a })), half);
+          if (prevF) f.forEach(([x, y, a], i) => {
+            if (prevF[i][2] && !a) { sfx("splash"); burst(stage, prevF[i][0], prevF[i][1], { colors: [WATER, PAPER], n: 14, up: 150 }); }
+          });
+          // a bump: two tokens touching that weren't a frame ago
+          if (prevF) for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
+            if (!f[i][2] || !f[j][2]) continue;
+            const near = Math.hypot(f[i][0] - f[j][0], f[i][1] - f[j][1]) < 2 * PIECE_R + 2;
+            const was = Math.hypot(prevF[i][0] - prevF[j][0], prevF[i][1] - prevF[j][1]) < 2 * PIECE_R + 2;
+            if (near && !was) { sfx("thunk"); haptic(14); shake(stage, 4, 160); }
+          }
+          prevF = f;
+        });
         const from = half;
         await tween(450, (p) => draw(null, e.afterSlide, from + (e.half - from) * p));
         half = e.half;

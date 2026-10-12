@@ -287,11 +287,25 @@ export function liveMatches(db, pid, now) {
 }
 
 /** Friend games still running for this player (so the app can offer to go back to them). */
+/** Friend games still going, newest first, with who they're against and whose move it is (for the chat bubbles). */
 export function liveFriendMatches(db, pid, now) {
-  return db.prepare(
-    `SELECT m.id, m.game FROM arcade_matches m JOIN arcade_seats s ON s.match_id = m.id
-     WHERE s.player_id = ? AND m.status = 'playing' AND m.mode <> 'cpu' AND m.updated_at > ?`,
+  const rows = db.prepare(
+    `SELECT m.id FROM arcade_matches m JOIN arcade_seats s ON s.match_id = m.id
+     WHERE s.player_id = ? AND m.status = 'playing' AND m.mode <> 'cpu' AND m.updated_at > ?
+     ORDER BY m.updated_at DESC LIMIT 10`,
   ).all(pid, now - STALE_MS);
+  return rows.map(({ id }) => {
+    const m = load(db, id);
+    const seat = seatOf(m, pid);
+    const them = m.seats[1 - seat];
+    return {
+      id: m.id,
+      game: m.game,
+      them: them?.name || "Player",
+      yourMove: GAMES[m.game].toMove(m.state).includes(seat),
+      at: m.updated_at,
+    };
+  });
 }
 
 // ---------- pairing friend games ----------

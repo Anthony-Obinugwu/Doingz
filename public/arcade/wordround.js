@@ -1,6 +1,6 @@
 // Shared bits of the two word games' screens: the round clock, word checks and the found list.
 import { fingerprint } from "/shared/words.js";
-import { loop } from "./kit.js";
+import { loop, sfx } from "./kit.js";
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -28,8 +28,11 @@ export function startRound(view, { onTick, onEnd }) {
     stop: null,
   };
   let ended = false;
+  let lastSec = null;
   r.stop = loop(() => {
     onTick?.(r);
+    const sec = Math.ceil(r.left() / 1000);
+    if (sec !== lastSec) { if (lastSec !== null && sec <= 10 && sec > 0) sfx("tick"); lastSec = sec; }
     if (r.left() <= 0 && !ended) { ended = true; onEnd(r); return false; }
     return true;
   });

@@ -1,6 +1,6 @@
 import G, { N } from "/shared/wordhunt.js";
 import { adjacent } from "/shared/words.js";
-import { onDrag, popup, slab, label, INK, PAPER, DANFO, GREEN, RED, LEAF } from "./kit.js";
+import { onDrag, popup, slab, label, sfx, note, haptic, burst, INK, PAPER, DANFO, GREEN, RED, LEAF } from "./kit.js";
 import { startRound, foundListHtml, summaryHtml } from "./wordround.js";
 
 export const W = G.W;
@@ -48,7 +48,11 @@ export default function wordhunt({ stage, seat, canMove, submit, hint, bar }) {
     }
     // current word and clock
     slab(ctx, 24, 18, 312, 50, PAPER, { r: 10, shadow: 4, line: 3 });
-    label(ctx, path.length ? word().toUpperCase() : round ? "Swipe a word" : "", W / 2, 44, { size: 26, color: state === "no" && path.length >= 3 ? RED : INK });
+    // GamePigeon-style word bubble: green with the points when it's a new word, yellow if you've had it
+    const live = path.length && (state === "new" || state === "naija");
+    if (path.length && state !== "no") slab(ctx, 24, 18, 312, 50, live ? GREEN : state === "again" ? DANFO : PAPER, { r: 10, shadow: 4, line: 3 });
+    const pts = live ? G.points(path.length) * (state === "naija" ? 2 : 1) : 0;
+    label(ctx, path.length ? word().toUpperCase() + (live ? `  +${pts}` : "") : round ? "Swipe a word" : "", W / 2, 44, { size: 26, color: live ? PAPER : state === "no" && path.length >= 3 ? RED : INK });
     if (round) {
       const s = Math.ceil(round.left() / 1000);
       label(ctx, `${s}s`, 40, 96, { size: 20, align: "left", color: s <= 10 ? RED : INK });
@@ -83,24 +87,34 @@ export default function wordhunt({ stage, seat, canMove, submit, hint, bar }) {
     down(x, y) {
       if (!round) return;
       const i = tileAt(x, y, 36);
-      if (i >= 0) { path = [i]; draw(); }
+      if (i >= 0) { path = [i]; note(0); haptic(6); draw(); }
     },
     move(x, y) {
       if (!round || !path.length) return;
       const i = tileAt(x, y, 27); // a little smaller than the tile so diagonals are easy
       if (i < 0) return;
-      if (path.length > 1 && i === path[path.length - 2]) { path.pop(); draw(); return; }
-      if (!path.includes(i) && adjacent(path[path.length - 1], i, N)) { path.push(i); draw(); }
+      if (path.length > 1 && i === path[path.length - 2]) { path.pop(); note(path.length - 1); draw(); return; }
+      if (!path.includes(i) && adjacent(path[path.length - 1], i, N)) {
+        path.push(i);
+        const st = round.check(word());
+        note(path.length - 1);
+        if (st === "new" || st === "naija") haptic(10);
+        draw();
+      }
     },
     up() {
       if (!round || !path.length) return;
       const w = word();
       const st = round.check(w);
+      if (st === "again") sfx("meh");
       if (st === "new" || st === "naija") {
         const pts = G.points(w.length) * (st === "naija" ? 2 : 1);
         round.add(w, pts);
         setBar();
-        popup(stage, draw, st === "naija" ? `Naija word! +${pts}` : `+${pts}`, W / 2, 450, st === "naija" ? DANFO : PAPER);
+        sfx("good");
+        const [bx, by] = centre(path[path.length - 1]);
+        burst(stage, bx, by, { colors: [GREEN, DANFO, PAPER], n: 8 + w.length * 3, up: 90 });
+        popup(stage, draw, st === "naija" ? `Naija word! +${pts}` : `+${pts}`, W / 2, 450, st === "naija" ? DANFO : GREEN);
       }
       path = [];
       draw();

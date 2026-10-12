@@ -1,5 +1,5 @@
 import G, { simulate, muzzle, SAMPLES, STEP, MAX_V, BLAST } from "/shared/tanks.js";
-import { onDrag, playFrames, tween, sleep, popup, slab, disc, label, arrow, dots, INK, PAPER, RED, BLUE, DANFO, SKY, LEAF } from "./kit.js";
+import { onDrag, playFrames, tween, sleep, popup, slab, disc, label, arrow, dots, INK, PAPER, RED, BLUE, DANFO, SKY, LEAF, sfx, haptic, shake, burst } from "./kit.js";
 
 export const W = G.W;
 export const H = G.H;
@@ -116,8 +116,11 @@ export default function tanks({ stage, seat, canMove, submit, hint }) {
         await sleep(e.seat === seat ? 0 : 450);
         const frames = [];
         simulate(e.before.h.slice(), e.before.tanks.map((t) => ({ ...t })), e.seat, e.vx, e.vy, e.wind, frames);
+        sfx("boom");
         await playFrames(frames, (f) => draw(() => disc(ctx, f[0], f[1], 5, INK, { shadow: 0, line: 0 }), st, e.wind), 1.4);
         if (e.hit) {
+          sfx("boom"); haptic([30, 20, 40]); shake(stage, 10, 450);
+          burst(stage, e.hit.x, e.hit.y, { colors: [DANFO, RED, INK, "#8a5a2b"], n: 30, speed: 320, up: 200, size: 5 });
           await tween(380, (p) => draw(() => {
             disc(ctx, e.hit.x, e.hit.y, BLAST * (0.4 + p * 0.8), p < 0.5 ? DANFO : RED, { shadow: 0, line: 3 });
           }, st, e.wind));
