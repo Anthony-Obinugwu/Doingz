@@ -67,10 +67,34 @@ export function createArcade(app) {
       <p>Play the computer or challenge a friend. Your first ${d.rules.scoredPerDay} games each day earn points: ${d.rules.win} for a win, ${d.rules.draw} for a draw.
         ${left ? `${plural(left, "scored game")} left today.` : "Today's scored games are done; keep playing for fun."}</p>
 
-      ${picking ? `<section class="panel people"><p class="pick-note"><b>${picking === "friend" ? "Pick a game below to challenge your friend to." : "Pick a game below to look for a quick match."}</b>
-          <button class="linkish" data-people="cancel">Cancel</button></p></section>` : ""}
+      <section class="panel people">
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <h2 class="big" style="margin:0">Play with people</h2>
+          ${vatar() ? `<button class="linkish" data-clear-vatar style="font-size:13px">Reset open match</button>` : ""}
+        </div>
+        ${d.friends.length ? `<div class="thread" aria-label="Your friend games">${d.friends.map((f) => `
+          <button class="bubble ${f.yourMove ? "in" : "out"}" data-friend-match="${f.id}">
+            <span class="bubble-icon">${ICONS[f.game] || ""}</span>
+            <span class="bubble-text"><b>${esc(title(f.game))}</b>
+              <small>${f.yourMove ? `${esc(f.them)} played · <strong>Your move</strong>` : `Sent · waiting for ${esc(f.them)}`}</small></span>
+            ${f.yourMove ? `<i class="badge" aria-hidden="true">1</i>` : ""}
+          </button>`).join("")}</div>` : ""}
+        ${picking ? `<p class="pick-note"><b>${picking === "friend" ? "Now pick a game below to challenge your friend to." : "Now pick a game below. If someone's waiting, you'll play their game."}</b>
+            <button class="linkish" data-people="cancel">Cancel</button></p>` : `
+          <div class="people-actions">
+            <button class="btn" data-people="friend">Invite a friend</button>
+            <button class="btn light" data-people="quick">Quick match</button>
+          </div>
+          <form class="join-row" data-join>
+            <input name="code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="Got a code?" aria-label="Friend's code" />
+            <button class="btn light" type="submit">Join</button>
+          </form>`}
+        ${vatar() ? `<div class="stake-row" role="group" aria-label="Stake">${[0, 500, 1000, 5000].map((v) =>
+          `<button data-stake="${v}" aria-pressed="${v === stake}">${v ? "₦" + v.toLocaleString("en-NG") : "Friendly"}</button>`).join("")}</div>
+          <p class="muted note">Stakes are Lagos Life game money, never real money. The winner takes the pot.</p>` : ""}
+      </section>
 
-      ${[["skill", "Skill and aim (vs Computer)"], ["board", "Board and cards (vs Computer)"], ["words", "Words and party (vs Computer)"]].map(([kind, heading]) => `
+      ${[["skill", "Skill and aim"], ["board", "Board and cards"], ["words", "Words and party"]].map(([kind, heading]) => `
         <h2 class="arcade-section">${heading}</h2>
         <div class="arcade-grid">
           ${d.games.filter((g) => g.kind === kind).map((g) => `
@@ -79,39 +103,12 @@ export function createArcade(app) {
               <b>${esc(g.title)}</b>
               ${d.live[g.id] && !picking ? `<em aria-label="Game in progress">▶</em>` : ""}
             </button>`).join("")}
-        </div>`).join("")}
-
-      <section class="panel people" style="margin-top:24px">
-        <div class="row" style="align-items:center;justify-content:space-between">
-          <h2 class="big" style="margin:0">Play with friends</h2>
-          <span class="chip">2 Players</span>
-        </div>
-        <p class="muted note">Challenge an iPhone or Android friend with a 6-letter code. (Full multiplayer unlocks once approved by Lagos Life).</p>
-        ${d.friends.length ? `<div class="thread" aria-label="Your friend games">${d.friends.map((f) => `
-          <button class="bubble ${f.yourMove ? "in" : "out"}" data-friend-match="${f.id}">
-            <span class="bubble-icon">${ICONS[f.game] || ""}</span>
-            <span class="bubble-text"><b>${esc(title(f.game))}</b>
-              <small>${f.yourMove ? `${esc(f.them)} played · <strong>Your move</strong>` : `Sent · waiting for ${esc(f.them)}`}</small></span>
-            ${f.yourMove ? `<i class="badge" aria-hidden="true">1</i>` : ""}
-          </button>`).join("")}</div>` : ""}
-        ${!picking ? `
-          <div class="people-actions">
-            <button class="btn" data-people="friend">Invite a friend</button>
-            <button class="btn light" data-people="quick">Quick match</button>
-          </div>
-          <form class="join-row" data-join>
-            <input name="code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="Got a code?" aria-label="Friend's code" />
-            <button class="btn light" type="submit">Join</button>
-          </form>` : ""}
-        ${vatar() ? `<div class="stake-row" role="group" aria-label="Stake">${[0, 500, 1000, 5000].map((v) =>
-          `<button data-stake="${v}" aria-pressed="${v === stake}">${v ? "₦" + v.toLocaleString("en-NG") : "Friendly"}</button>`).join("")}</div>
-          <p class="muted note">Stakes are Lagos Life game money, never real money. The winner takes the pot.</p>` : ""}
-      </section>`);
+        </div>`).join("")}`);
   }
 
   // Taps inside the people panel (the app's own click handler routes data-arcade to tapGame).
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-resign],[data-sound]");
+    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-resign],[data-leave-game],[data-clear-vatar],[data-sound]");
     if (!t) return;
     if (t.dataset.sound !== undefined) {
       setMuted(!isMuted());
@@ -126,7 +123,8 @@ export function createArcade(app) {
     if (t.dataset.friendMatch) return openMatch(t.dataset.friendMatch);
     if (t.dataset.cancelWait !== undefined) return cancelWaiting();
     if (t.dataset.claim !== undefined) return claimWin();
-    if (t.dataset.resign !== undefined) return resign();
+    if (t.dataset.leaveGame !== undefined || t.dataset.resign !== undefined) return leaveGame();
+    if (t.dataset.clearVatar !== undefined) return resetVatarMatch();
   });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("[data-join]");
@@ -157,7 +155,7 @@ export function createArcade(app) {
         <p class="code-big" aria-label="Code ${esc(code.split("").join(" "))}">${esc(code)}</p>` : ""}
       <p>Game: <b>${esc(title)}</b>${stake && vatar() ? `, stake ₦${stake.toLocaleString("en-NG")} game money` : ""}.</p>
       <p class="muted">${quick ? "Anyone looking for a game can join." : "This code works for 15 minutes."}</p>
-      <button class="btn light" data-cancel-wait>Cancel</button>
+      <button class="btn light" data-cancel-wait>Leave & Cancel Match</button>
     </section>`);
   }
 
@@ -178,25 +176,47 @@ export function createArcade(app) {
 
   async function cancelWaiting() {
     await abandonWaiting();
+    toast("Match cancelled.");
+    renderList();
+  }
+
+  async function resetVatarMatch() {
+    toast("Clearing open matches...");
+    try {
+      await window.Vatar?.match?.leave();
+      const old = await window.Vatar?.match?.current().catch(() => null);
+      if (old?.id) await api("/api/arcade/leave-lobby", { vatarMatchId: old.id }).catch(() => {});
+      toast("Match reset. You can start or join fresh!");
+    } catch {
+      toast("Ready to play.");
+    }
     renderList();
   }
 
   /**
-   * Runs a Lagos Life match call safely. If busy or rate limited, notify without spamming requests.
+   * Runs a Lagos Life match call safely. If busy, actively clears the old match and retries once.
    */
   async function withFreeSeat(call) {
     try {
       return await call();
     } catch (e) {
       if (e.code === "busy") {
-        toast("Friend games are busy or a sheet is open. You can play against the computer anytime!");
-        return null;
+        toast("Clearing previous open match...");
+        try {
+          await window.Vatar?.match?.leave();
+          const cur = await window.Vatar?.match?.current().catch(() => null);
+          if (cur?.id) await api("/api/arcade/leave-lobby", { vatarMatchId: cur.id }).catch(() => {});
+        } catch {}
+        await new Promise((r) => setTimeout(r, 1200));
+        try {
+          return await call();
+        } catch (e2) {
+          matchError(e2);
+          return null;
+        }
       }
-      if (e.code === "rate_limited") {
-        toast("Please wait a moment before starting another match.");
-        return null;
-      }
-      throw e;
+      matchError(e);
+      return null;
     }
   }
 
@@ -397,7 +417,7 @@ export function createArcade(app) {
         <span class="grabber" aria-hidden="true"></span>
         <div class="row">
           <button class="back" data-go="arcade">‹ Arcade</button>
-          ${match.multi && match.status === "playing" ? `<button class="linkish" data-resign>Resign</button>` : ""}
+          <button class="btn light" style="min-height:36px;font-size:14px;padding:2px 14px;width:auto" data-leave-game>${match.multi ? "Leave / Resign" : "Leave game"}</button>
           <button class="sound" data-sound aria-pressed="${!isMuted()}" aria-label="Sound">${isMuted() ? "🔇" : "🔊"}</button>
           <span class="chip">${match.multi ? "Friend game" : match.scored ? "Scored game" : "Practice"}</span>
         </div>
@@ -541,13 +561,22 @@ export function createArcade(app) {
     } catch (e) { toast(e.message); }
   }
 
-  async function resign() {
-    if (!cur || !window.confirm("Resign this game? They'll get the win.")) return;
-    try {
-      const d = await api("/api/arcade/forfeit", { matchId: cur.match.id });
-      cur.match = d.match;
-      showResult();
-    } catch (e) { toast(e.message); }
+  async function leaveGame() {
+    if (!cur) return leave();
+    if (cur.match.status === "playing") {
+      const msg = cur.match.multi ? "Leave and resign this friend game?" : "Leave this game? It will count as a forfeit.";
+      if (!window.confirm(msg)) return;
+      try {
+        const d = await api("/api/arcade/forfeit", { matchId: cur.match.id });
+        if (cur.match.multi) await window.Vatar?.match?.leave().catch(() => {});
+        cur.match = d.match;
+        showResult();
+        return;
+      } catch (e) { toast(e.message); }
+    }
+    if (cur.match.multi) await window.Vatar?.match?.leave().catch(() => {});
+    leave();
+    renderList();
   }
 
   return {
