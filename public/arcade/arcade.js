@@ -46,7 +46,7 @@ export function createArcade(app) {
     not_open: "That game is full, started or over.",
     signed_out: "Sign in to Lagos Life to play friends.",
     off: "Friend games are switched off right now.",
-    busy: "You're still in another friend game. Finish or cancel it first.",
+    busy: "Lagos Life already has a sheet open. Close it, then try again.",
     timeout: "Lagos Life didn't answer. Try again.",
   };
   const matchError = (e) => toast(MATCH_ERRORS[e.code] || e.message || "That didn't work. Try again.");
@@ -176,8 +176,9 @@ export function createArcade(app) {
   }
 
   /**
-   * Runs a Lagos Life match call. If it answers "busy" we're still in an older match:
-   * go back to it if it's being played, otherwise leave it and try once more. Resolves null if we went back.
+   * Runs a Lagos Life match call. "busy" means a Lagos Life sheet is open, but it can also come from an
+   * older match we never left: go back to it if it's being played, or leave it if it's still waiting, then try once more.
+   * Resolves null if we went back to the old match.
    */
   async function withFreeSeat(call) {
     try {
@@ -190,8 +191,9 @@ export function createArcade(app) {
         pairAndOpen(old.id);
         return null;
       }
+      if (old?.status !== "open") throw e; // no old match: a sheet really is open
       await window.Vatar.match.leave().catch(() => {});
-      if (old?.id) await api("/api/arcade/leave-lobby", { vatarMatchId: old.id }).catch(() => {});
+      await api("/api/arcade/leave-lobby", { vatarMatchId: old.id }).catch(() => {});
       return call();
     }
   }
