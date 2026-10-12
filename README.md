@@ -1,10 +1,12 @@
 # Doingz
 
-The daily Naija word, quick-fire trivia and a skill-game arcade for Lagos Life, built on the Vatar Games SDK.
+The daily Naija word, quick-fire trivia and a 19-game arcade for Lagos Life, built on the Vatar Games SDK.
 
 - **Today's word.** Guess the five-letter Naija word in six tries: food, Lagos places, cities, slang and culture. A free clue says what kind of word it is, and the meaning shows when you finish.
 - **Quick fire.** Ten questions, fifteen seconds each, on slang, languages, food, Lagos, states and culture. The first three rounds a day earn points; answer fast for a bonus.
-- **Arcade.** Nine skill games against the computer: Darts, Archery, Basketball, Zobo Pong, Lagos Mini Golf, Shuffleboard (with bottle covers), Knockout (on a lagoon raft), Tanks (over Olumo Rock) and Paintball (in a vulcanizer's tyre yard). The first ten games a day earn points: 25 for a win, 10 for a draw.
+- **Arcade: skill and aim.** Darts, Archery (at the Durbar), Basketball (street court), Zobo Pong, Lagos Mini Golf, Shuffleboard (with bottle covers), Knockout (on a lagoon raft), Tanks (over Olumo Rock) and Paintball (in a vulcanizer's tyre yard).
+- **Arcade: board and cards.** Four in a Row, Draughts, Chess, Reversi, Gomoku, Ayo, Dots & Boxes, Sea Battle, Filler and Crazy 8.
+- Every arcade game is against the computer. The first ten games a day earn points: 25 for a win, 10 for a draw.
 - **Board.** Points from every mode add up on the Lagos Life leaderboard. Points can't be bought.
 
 Every answer and every shot is decided on the server, so today's word and the trivia answers never reach the phone before they're played, and arcade results can't be faked by editing the page.
@@ -15,7 +17,7 @@ Needs Node 22.13 or newer. There's nothing to install.
 
 ```sh
 npm run dev      # http://localhost:8080 with a pretend local player (DEV_AUTH=1)
-npm test         # 22 tests: the API against a fake Vatar, and every arcade game played to the end
+npm test         # 32 tests: the API against a fake Vatar, chess perft, rule checks, every arcade game played to the end
 ```
 
 Outside Lagos Life the game uses a local test player, and shop items are free. That mode is switched off whenever `NODE_ENV=production`.
@@ -46,7 +48,7 @@ At [lagoslife.app/developers/keys](https://lagoslife.app/developers/keys):
 | Game name | Doingz |
 | HTTPS address | `https://<your domain>/` |
 | Webhook | `https://<your domain>/api/vatar-webhook` |
-| Description | The daily Naija word, quick-fire trivia and nine arcade games. |
+| Description | The daily Naija word, quick-fire trivia and 19 arcade games. |
 
 Copy the **test secret** and **test webhook signing secret** (shown once) into your host as `VATAR_SECRET_TEST` and `VATAR_WEBHOOK_SECRET_TEST`, then redeploy.
 
@@ -77,13 +79,13 @@ Doingz doesn't use Vatar's multiplayer matches yet (arcade games are against the
 Upload the files in `listing/` and the text below, agree to the Developer Agreement, and submit.
 
 - **Icon:** `listing/icon-512.png`
-- **Screenshots:** `listing/screenshot-1-home.png` to `screenshot-5-arcade.png` (750 × 1624)
+- **Screenshots:** the five `listing/screenshot-*.png` files (750 × 1624)
 - **Category:** Word or Puzzle (whichever the dashboard offers)
-- **Short description** (98 characters): The daily Naija word, quick-fire trivia and nine arcade games. Beat the computer, climb the board.
+- **Short description** (96 characters): The daily Naija word, quick-fire trivia and 19 arcade games. Beat the computer, climb the board.
 - **Long description:**
   > Doingz is two games in one. Every day there's a new five-letter Naija word to guess in six tries, from amala to Ikeja to awoof. A free clue tells you what kind of word it is, and when you finish you learn what it means. Then test yourself in Quick fire: ten questions in fifteen seconds each on slang, languages, food, Lagos, states and culture.
   >
-  > Then hit the Arcade: darts, archery at the Durbar, street-court basketball, zobo pong, mini golf around Lagos, bottle-cover shuffleboard, knockout on a lagoon raft, tanks over Olumo Rock and paintball in a vulcanizer's tyre yard. Beat the computer to earn points.
+  > Then hit the Arcade: darts, archery at the Durbar, street-court basketball, zobo pong, mini golf around Lagos, bottle-cover shuffleboard, knockout on a lagoon raft, tanks over Olumo Rock and paintball in a vulcanizer's tyre yard. Or sit down for chess, draughts, Ayo, reversi, gomoku, four in a row, dots and boxes, sea battle, filler and Crazy 8. Beat the computer to earn points.
   >
   > Points from everything add up on the board. Your first three Quick fire rounds and first ten arcade games each day count, and a daily streak adds a bonus to your word score.
   >
@@ -122,7 +124,10 @@ shared simulation, then show state
 ```
 
 - **Rules live in `public/shared/`**, one file per game, and run in both places: the server decides, the phone replays the same simulation to animate it. The simulations only use `+ − × ÷` and `Math.sqrt`, which JavaScript requires to be exact on every engine, so an iPhone, an Android phone and the server agree to the last digit. (`sin`, `cos` and `pow` aren't exact across engines, so they only appear in server-side setup and computer aiming, never inside a simulation.) Anything random, like the wind in Archery or dart wobble, is rolled by the server and sent as data. After every animation the phone snaps to the server's state anyway.
-- **The computer** aims like a person: it solves the shot, then adds human-sized error. Its accuracy was tuned so it wins and loses about evenly against itself, and the basketball computer makes about 59% of shots.
+- **The computer** aims like a person: it solves the shot, then adds human-sized error. Its accuracy was tuned so it wins and loses about evenly against itself, and the basketball computer makes about 59% of shots. In the board games it searches a few moves ahead with a little randomness, so it's a fair club-level opponent rather than unbeatable: chess looks two moves deep plus captures, draughts four, Ayo six.
+- **Board and card games** send a snapshot of what you're allowed to see after every move, so the phone can step through the computer's reply. The computer's ships in Sea Battle and its hand in Crazy 8 never leave the server; a test checks this.
+- **Chess** has the full rules (castling, en passant, promotion to queen, checkmate, stalemate, fifty moves, threefold repetition, insufficient material) and its move generator matches the standard perft counts. Each computer move is capped at a fixed search budget (about 0.1 s) so one chess game can't slow the server for everyone else.
+- **House rules worth knowing:** Draughts is 8 × 8 English rules (compulsory captures, crowning ends the move); after 60 moves with no capture or crowning, more pieces wins. Ayo uses the common "twos and threes" capture rule shared with Oware, with no grand slams and compulsory feeding; first to 25 seeds. Crazy 8 lets you draw up to three cards before passing.
 - **Paintball** is the only real-time game. The server writes each round's pop-up schedule, and only accepts hits on targets that were actually up at that moment, in rounds that lasted their full 30 seconds. Six-shot magazines stop spray-tapping.
 - **Points:** 25 for a win and 10 for a draw, in your first ten arcade games each Lagos day (`ARCADE_SCORED_PER_DAY`). Later games are practice.
 
@@ -135,7 +140,7 @@ Matches are already seat-based. `arcade_matches.seats` holds `[{ kind: "human", 
 3. When `result()` is set, post the winner to Vatar's `POST /matches/{id}/result` with your results secret (see the Vatar docs), so stakes in game money settle.
 4. Ask Vatar to approve matches for Doingz, and then stakes.
 
-Knockout already resolves simultaneous moves, so it works for two people as it is.
+Knockout already resolves simultaneous moves, so it works for two people as it is. The board and card games are strictly turn-based and suit friend matches best; Sea Battle and Crazy 8 already compute a separate view per seat.
 
 ## Adding a game
 

@@ -43,7 +43,13 @@ async function playOut(token, gameId) {
   const game = GAMES[gameId];
   const events = [];
   for (let k = 0; k < 400 && match.status === "playing"; k++) {
-    let move = game.cpu({ g: match.view }, match.seat, Math.random);
+    let move = gameId === "seabattle" || gameId === "crazy8" ? null : game.cpu({ g: match.view }, match.seat, Math.random);
+    if (gameId === "seabattle") move = { i: match.view.myShots.findIndex((v) => !v) };
+    if (gameId === "crazy8") {
+      const v = match.view;
+      const ok = v.hand.find((c) => c % 13 === 7 || Math.floor(c / 13) === v.suit || c % 13 === v.top % 13);
+      move = ok !== undefined ? { card: ok, suit: 0 } : v.drawsThisTurn < 3 && v.deck > 0 ? { draw: true } : { pass: true };
+    }
     if (gameId === "paintball") {
       if (!match.view.live) move = { start: true };
       else {
@@ -51,6 +57,7 @@ async function playOut(token, gameId) {
         move = { hits: match.view.live.pops.filter((p) => !p.friend).slice(0, 8).map((p) => ({ id: p.id, t: p.t + 200 })) };
       }
     }
+    clock += 600; // people take time over moves (and the API allows 120 requests a minute)
     const r = await call("/api/arcade/move", { matchId: match.id, move }, token);
     assert.equal(r.status, 200, `${gameId}: ${JSON.stringify(r.data)}`);
     events.push(...r.data.events);
@@ -151,4 +158,22 @@ test("paintball refuses hits on targets that weren't up, and rounds that end ear
   const r = await call("/api/arcade/move", { matchId: match.id, move: { hits: fake } }, t);
   const mine = r.data.events.find((e) => e.type === "round_end" && e.seat === match.seat);
   assert.equal(mine.score, 0);
+});
+
+test("hidden information stays hidden: no computer ships or cards reach the phone", async () => {
+  const token = await devPlayer("spy");
+  // Sea Battle: the computer's fleet isn't in the view until sunk.
+  let { match } = (await call("/api/arcade/start", { game: "seabattle" }, token)).data;
+  assert.equal(match.view.theirs.length, 0);
+  assert.equal(JSON.stringify(match).includes("fleets"), false);
+  const r = await call("/api/arcade/move", { matchId: match.id, move: { i: 0 } }, token);
+  assert.equal(JSON.stringify(r.data).includes("fleets"), false);
+  // Crazy 8: we see our hand and their count, never their cards or the deck order.
+  ({ match } = (await call("/api/arcade/start", { game: "crazy8" }, token)).data);
+  assert.equal(typeof match.view.theirs, "number");
+  assert.equal("hands" in match.view || "deck" in match.view && Array.isArray(match.view.deck), false);
+  const d = await call("/api/arcade/move", { matchId: match.id, move: { draw: true } }, token);
+  const text = JSON.stringify(d.data);
+  assert.equal(text.includes('"hands"'), false);
+  for (const e of d.data.events) if (e.seat !== match.seat && e.type === "draw") assert.equal(e.card, null);
 });

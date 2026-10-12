@@ -228,7 +228,12 @@ main { overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 20px; 
 
 /* ---------- arcade ---------- */
 
-.arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+.arcade-section { font-weight: 900; font-stretch: 70%; font-size: 26px; line-height: 1; margin: 22px 0 0; }
+.suit-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.suit-pick .btn { font-size: 26px; font-stretch: 100%; padding: 4px 0; background: var(--panel); color: var(--on-panel); }
+.suit-pick .btn.red { color: #d9412b; }
+.game-bar .row .btn { flex: 1; }
 .game-tile {
   position: relative; display: grid; gap: 4px; align-content: start; text-align: left;
   background: var(--panel); color: var(--on-panel); border: 3px solid var(--tile-line); border-radius: var(--radius-lg);

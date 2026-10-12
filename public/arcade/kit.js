@@ -201,3 +201,42 @@ export function dots(ctx, pts, color = INK) {
   });
   ctx.globalAlpha = 1;
 }
+
+// ---------- turn-based helpers ----------
+
+/** Shows each move's snapshot in turn: quick for yours, slower for the computer's so you can follow. */
+export async function stepThrough(events, seat, show, { mine = 160, theirs = 560 } = {}) {
+  for (const e of events) {
+    if (!e.snap) continue;
+    await show(e.snap, e);
+    await sleep(e.seat === seat ? mine : theirs);
+  }
+}
+
+/** Grid cell under a point, or -1. */
+export function cellAt(x, y, x0, y0, size, cols, rows) {
+  const c = Math.floor((x - x0) / size), r = Math.floor((y - y0) / size);
+  return c >= 0 && c < cols && r >= 0 && r < rows ? r * cols + c : -1;
+}
+
+/** Tap (pointerdown + pointerup without much movement) on the stage, in logical coordinates. */
+export function onTap(stage, fn) {
+  let start = null;
+  const d = (e) => { start = stage.toLocal(e); };
+  const u = (e) => {
+    if (!start) return;
+    const [x, y] = stage.toLocal(e);
+    if (Math.hypot(x - start[0], y - start[1]) < 18) fn(x, y);
+    start = null;
+  };
+  stage.canvas.addEventListener("pointerdown", d);
+  stage.canvas.addEventListener("pointerup", u);
+  return () => { stage.canvas.removeEventListener("pointerdown", d); stage.canvas.removeEventListener("pointerup", u); };
+}
+
+/** A ring highlight around a cell. */
+export function ring(ctx, x, y, r, color = DANFO, width = 4) {
+  ctx.lineWidth = width + 3; ctx.strokeStyle = INK;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = width; ctx.strokeStyle = color; ctx.stroke();
+}

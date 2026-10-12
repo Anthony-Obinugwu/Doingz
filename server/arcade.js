@@ -17,9 +17,20 @@ import shuffle from "../public/shared/shuffle.js";
 import knockout from "../public/shared/knockout.js";
 import tanks from "../public/shared/tanks.js";
 import paintball from "../public/shared/paintball.js";
+import four from "../public/shared/four.js";
+import draughts from "../public/shared/draughts.js";
+import chess from "../public/shared/chess.js";
+import reversi from "../public/shared/reversi.js";
+import gomoku from "../public/shared/gomoku.js";
+import ayo from "../public/shared/ayo.js";
+import dots from "../public/shared/dots.js";
+import seabattle from "../public/shared/seabattle.js";
+import filler from "../public/shared/filler.js";
+import crazy8 from "../public/shared/crazy8.js";
 
 export const GAMES = Object.fromEntries(
-  [darts, archery, basketball, pong, golf, shuffle, knockout, tanks, paintball].map((g) => [g.id, g]),
+  [darts, archery, basketball, pong, golf, shuffle, knockout, tanks, paintball,
+    four, draughts, chess, reversi, gomoku, ayo, dots, seabattle, filler, crazy8].map((g) => [g.id, g]),
 );
 
 export const ARCADE_SCORED_PER_DAY = 10;
@@ -31,7 +42,7 @@ const MAX_CPU_STEPS = 200;
 const parse = (s) => JSON.parse(s);
 
 export function listGames() {
-  return Object.values(GAMES).map((g) => ({ id: g.id, title: g.title, blurb: g.blurb, how: g.how }));
+  return Object.values(GAMES).map((g) => ({ id: g.id, title: g.title, blurb: g.blurb, how: g.how, kind: g.snapshots ? "board" : "skill" }));
 }
 
 function load(db, id) {
@@ -78,15 +89,27 @@ function settle(db, m, now) {
   }
 }
 
+/**
+ * Applies one move. Turn-based games (game.snapshots) also attach what `viewer` may see right after
+ * it, so the phone can step through the computer's moves without learning hidden cards or ships.
+ */
+function applyMove(game, st, seat, move, ctx, viewer, events) {
+  const evs = game.apply(st, seat, move, ctx);
+  if (game.snapshots && evs.length) {
+    evs[evs.length - 1].snap = JSON.parse(JSON.stringify(game.view ? game.view(st, viewer) : st.g));
+  }
+  events.push(...evs);
+}
+
 /** Runs computer seats until a person has to move or the match ends. */
-function runCpu(db, m, now, events) {
+function runCpu(db, m, now, events, viewer = 0) {
   const game = GAMES[m.game];
   for (let step = 0; step < MAX_CPU_STEPS && !game.result(m.state); step++) {
     const cpuSeats = game.toMove(m.state).filter((s) => m.seats[s].kind === "cpu");
     if (!cpuSeats.length) break;
     for (const s of cpuSeats) {
       const move = game.cpu(m.state, s, Math.random);
-      events.push(...game.apply(m.state, s, move, { now, cpu: true }));
+      applyMove(game, m.state, s, move, { now, cpu: true }, viewer, events);
     }
   }
 }
@@ -137,8 +160,9 @@ export function moveMatch(db, pid, matchId, move, now) {
     const game = GAMES[m.game];
     if (!game.toMove(m.state).includes(seat)) throw new GameError(409, "not_your_turn", "It's not your turn");
     if (!move || typeof move !== "object") throw new GameError(400, "bad_move", "Missing move");
-    const events = game.apply(m.state, seat, move, { now, cpu: false });
-    runCpu(db, m, now, events);
+    const events = [];
+    applyMove(game, m.state, seat, move, { now, cpu: false }, seat, events);
+    runCpu(db, m, now, events, seat);
     settle(db, m, now);
     save(db, m, now);
     return { events, match: matchView(m, seat), player: publicPlayer(db, getPlayer(db, pid), today) };
