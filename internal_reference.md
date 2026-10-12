@@ -11,10 +11,12 @@ Doingz is a Naija-themed daily word puzzle, quick-fire trivia, and 22-game arcad
    - Simulations run deterministically in `public/shared/` and `public/arcade/`.
    - AI opponents tuned for fair human-like competition.
    - Independent of Vatar match infrastructure (requires no external multiplayer lobbies).
-4. **Arcade (Friend Games / Multiplayer)**:
+4. **Arcade (Friend Games / Multiplayer & CPU Controls)**:
    - Full multiplayer panel prominent at the top of the Arcade tab (Invite a friend, Quick match, code join).
-   - "Leave game" / "Leave / Resign" button available in all game modes to cleanly forfeit and release open Vatar matches.
-   - Built-in "Reset open match" button in the menu and automatic clearing of stale Vatar matches when `busy` is encountered.
+   - Games against CPU feature an explicit **"End match"** button to immediately concede and forfeit.
+   - Multiplayer (Friend) games feature only the standard **"Resign"** button (no generic "Leave game" button).
+   - Waiting screens feature a direct "Cancel" button that cleanly abandons lobbies without speculative `match.leave` loops.
+   - Clean Vatar SDK error handling without aggressive retry loops on `busy` to prevent `rate_limited` responses.
 
 ## Review & Launch Checklist
 To get approved and live on Lagos Life:

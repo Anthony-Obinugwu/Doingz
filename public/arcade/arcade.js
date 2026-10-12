@@ -46,7 +46,8 @@ export function createArcade(app) {
     not_open: "That game is full, started or over.",
     signed_out: "Sign in to Lagos Life to play friends.",
     off: "Friend games are switched off right now.",
-    busy: "Lagos Life already has a sheet open. Close it, then try again.",
+    busy: "Lagos Life has an open sheet or match in progress. Try again in a moment.",
+    rate_limited: "Give it a few seconds before trying again.",
     timeout: "Lagos Life didn't answer. Try again.",
   };
   const matchError = (e) => toast(MATCH_ERRORS[e.code] || e.message || "That didn't work. Try again.");
@@ -68,10 +69,7 @@ export function createArcade(app) {
         ${left ? `${plural(left, "scored game")} left today.` : "Today's scored games are done; keep playing for fun."}</p>
 
       <section class="panel people">
-        <div class="row" style="align-items:center;justify-content:space-between">
-          <h2 class="big" style="margin:0">Play with people</h2>
-          ${vatar() ? `<button class="linkish" data-clear-vatar style="font-size:13px">Reset open match</button>` : ""}
-        </div>
+        <h2 class="big" style="margin:0 0 10px">Play with people</h2>
         ${d.friends.length ? `<div class="thread" aria-label="Your friend games">${d.friends.map((f) => `
           <button class="bubble ${f.yourMove ? "in" : "out"}" data-friend-match="${f.id}">
             <span class="bubble-icon">${ICONS[f.game] || ""}</span>
@@ -108,7 +106,7 @@ export function createArcade(app) {
 
   // Taps inside the people panel (the app's own click handler routes data-arcade to tapGame).
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-resign],[data-leave-game],[data-clear-vatar],[data-sound]");
+    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-end-match],[data-resign],[data-sound]");
     if (!t) return;
     if (t.dataset.sound !== undefined) {
       setMuted(!isMuted());
@@ -123,8 +121,8 @@ export function createArcade(app) {
     if (t.dataset.friendMatch) return openMatch(t.dataset.friendMatch);
     if (t.dataset.cancelWait !== undefined) return cancelWaiting();
     if (t.dataset.claim !== undefined) return claimWin();
-    if (t.dataset.leaveGame !== undefined || t.dataset.resign !== undefined) return leaveGame();
-    if (t.dataset.clearVatar !== undefined) return resetVatarMatch();
+    if (t.dataset.endMatch !== undefined) return endMatch();
+    if (t.dataset.resign !== undefined) return resign();
   });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("[data-join]");
@@ -155,7 +153,7 @@ export function createArcade(app) {
         <p class="code-big" aria-label="Code ${esc(code.split("").join(" "))}">${esc(code)}</p>` : ""}
       <p>Game: <b>${esc(title)}</b>${stake && vatar() ? `, stake ₦${stake.toLocaleString("en-NG")} game money` : ""}.</p>
       <p class="muted">${quick ? "Anyone looking for a game can join." : "This code works for 15 minutes."}</p>
-      <button class="btn light" data-cancel-wait>Leave & Cancel Match</button>
+      <button class="btn light" data-cancel-wait>Cancel</button>
     </section>`);
   }
 
@@ -180,45 +178,6 @@ export function createArcade(app) {
     renderList();
   }
 
-  async function resetVatarMatch() {
-    toast("Clearing open matches...");
-    try {
-      await window.Vatar?.match?.leave();
-      const old = await window.Vatar?.match?.current().catch(() => null);
-      if (old?.id) await api("/api/arcade/leave-lobby", { vatarMatchId: old.id }).catch(() => {});
-      toast("Match reset. You can start or join fresh!");
-    } catch {
-      toast("Ready to play.");
-    }
-    renderList();
-  }
-
-  /**
-   * Runs a Lagos Life match call safely. If busy, actively clears the old match and retries once.
-   */
-  async function withFreeSeat(call) {
-    try {
-      return await call();
-    } catch (e) {
-      if (e.code === "busy") {
-        toast("Clearing previous open match...");
-        try {
-          await window.Vatar?.match?.leave();
-          const cur = await window.Vatar?.match?.current().catch(() => null);
-          if (cur?.id) await api("/api/arcade/leave-lobby", { vatarMatchId: cur.id }).catch(() => {});
-        } catch {}
-        await new Promise((r) => setTimeout(r, 1200));
-        try {
-          return await call();
-        } catch (e2) {
-          matchError(e2);
-          return null;
-        }
-      }
-      matchError(e);
-      return null;
-    }
-  }
 
   /** Lagos Life: once the Vatar match is playing, both phones ask our server for the game. */
   async function pairAndOpen(vatarId) {
@@ -266,8 +225,7 @@ export function createArcade(app) {
       return;
     }
     try {
-      const vm = await withFreeSeat(() => window.Vatar.match.create({ stake, seats: 2 }));
-      if (!vm) return;
+      const vm = await window.Vatar.match.create({ stake, seats: 2 });
       await api("/api/arcade/lobby", { vatarMatchId: vm.id, game });
       watchVatar(vm, game, false);
     } catch (e) { if (e.code !== "cancelled") matchError(e); }
@@ -290,8 +248,7 @@ export function createArcade(app) {
       return;
     }
     try {
-      const vm = await withFreeSeat(() => window.Vatar.match.quick({ stake }));
-      if (!vm) return;
+      const vm = await window.Vatar.match.quick({ stake });
       if (vm.status === "playing") return pairAndOpen(vm.id);
       await api("/api/arcade/lobby", { vatarMatchId: vm.id, game });
       watchVatar(vm, game, true);
@@ -303,8 +260,7 @@ export function createArcade(app) {
       try { const d = await api("/api/arcade/dev-join", { code }); return openMatch(d.match.id, d.match); } catch (e) { return matchError(e); }
     }
     try {
-      const vm = await withFreeSeat(() => window.Vatar.match.join(code));
-      if (!vm) return;
+      const vm = await window.Vatar.match.join(code);
       return pairAndOpen(vm.id);
     } catch (e) { if (e.code !== "cancelled") matchError(e); }
   }
@@ -417,7 +373,8 @@ export function createArcade(app) {
         <span class="grabber" aria-hidden="true"></span>
         <div class="row">
           <button class="back" data-go="arcade">‹ Arcade</button>
-          <button class="btn light" style="min-height:36px;font-size:14px;padding:2px 14px;width:auto" data-leave-game>${match.multi ? "Leave / Resign" : "Leave game"}</button>
+          ${!match.multi && match.status === "playing" ? `<button class="btn light" style="min-height:36px;font-size:14px;padding:2px 14px;width:auto" data-end-match>End match</button>` : ""}
+          ${match.multi && match.status === "playing" ? `<button class="linkish" data-resign>Resign</button>` : ""}
           <button class="sound" data-sound aria-pressed="${!isMuted()}" aria-label="Sound">${isMuted() ? "🔇" : "🔊"}</button>
           <span class="chip">${match.multi ? "Friend game" : match.scored ? "Scored game" : "Practice"}</span>
         </div>
@@ -561,22 +518,24 @@ export function createArcade(app) {
     } catch (e) { toast(e.message); }
   }
 
-  async function leaveGame() {
-    if (!cur) return leave();
-    if (cur.match.status === "playing") {
-      const msg = cur.match.multi ? "Leave and resign this friend game?" : "Leave this game? It will count as a forfeit.";
-      if (!window.confirm(msg)) return;
-      try {
-        const d = await api("/api/arcade/forfeit", { matchId: cur.match.id });
-        if (cur.match.multi) await window.Vatar?.match?.leave().catch(() => {});
-        cur.match = d.match;
-        showResult();
-        return;
-      } catch (e) { toast(e.message); }
-    }
-    if (cur.match.multi) await window.Vatar?.match?.leave().catch(() => {});
-    leave();
-    renderList();
+  async function endMatch() {
+    if (!cur || cur.match.multi) return;
+    if (!window.confirm("End this match? The computer will take the win.")) return;
+    try {
+      const d = await api("/api/arcade/forfeit", { matchId: cur.match.id });
+      cur.match = d.match;
+      showResult();
+    } catch (e) { toast(e.message); }
+  }
+
+  async function resign() {
+    if (!cur || !cur.match.multi) return;
+    if (!window.confirm("Resign this game? They'll get the win.")) return;
+    try {
+      const d = await api("/api/arcade/forfeit", { matchId: cur.match.id });
+      cur.match = d.match;
+      showResult();
+    } catch (e) { toast(e.message); }
   }
 
   return {
