@@ -61,6 +61,11 @@ export function createArcade(app) {
     let d;
     try { d = await api("/api/arcade"); } catch (e) { return screen(`<h1 class="big title">Arcade</h1><p>${esc(e.message)}</p>`); }
     meta = d;
+    if (vatar()?.match && !cur) {
+      window.Vatar.match.current().then((vm) => {
+        if (vm?.status === "playing" && !cur) pairAndOpen(vm.id);
+      }).catch(() => {});
+    }
     const left = d.player.arcadeScoredLeft;
     const title = (id) => d.games.find((g) => g.id === id)?.title || id;
     screen(`
@@ -159,6 +164,7 @@ export function createArcade(app) {
 
   function stopWaiting() {
     if (waiting?.timer) clearInterval(waiting.timer);
+    if (waiting?.unsub) { try { waiting.unsub(); } catch {} }
     waiting = null;
   }
 
@@ -196,7 +202,7 @@ export function createArcade(app) {
   }
 
   function watchVatar(vm, game, quick) {
-    waiting = { vatarId: vm.id, timer: null };
+    waiting = { vatarId: vm.id, timer: null, unsub: null };
     waitingScreen({ code: quick ? null : vm.code, game, quick });
     const check = async () => {
       try {
@@ -206,7 +212,16 @@ export function createArcade(app) {
         if (now.status === "cancelled" || now.status === "void") { stopWaiting(); toast("That game was cancelled"); renderList(); }
       } catch { /* try again next tick */ }
     };
-    waiting.timer = setInterval(check, 2500);
+    waiting.timer = setInterval(check, 1500);
+    try {
+      if (window.Vatar?.match?.onUpdate) {
+        waiting.unsub = window.Vatar.match.onUpdate((now) => {
+          if (!waiting || !now || now.id !== vm.id) return;
+          if (now.status === "playing") { const id = vm.id; stopWaiting(); pairAndOpen(id); }
+          if (now.status === "cancelled" || now.status === "void") { stopWaiting(); toast("That game was cancelled"); renderList(); }
+        });
+      }
+    } catch {}
   }
 
   async function challenge(game) {
