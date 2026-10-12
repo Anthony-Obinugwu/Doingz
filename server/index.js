@@ -6,7 +6,7 @@ import { makeVatar } from "./vatar.js";
 import { createApp } from "./app.js";
 
 const db = openDb(config.dataDir);
-const vatar = makeVatar({ api: config.vatarApi, secrets: config.secrets });
+const vatar = makeVatar({ api: config.vatarApi, secrets: config.secrets, resultsSecrets: config.resultsSecrets });
 const handle = createApp({ config, db, vatar });
 
 const server = http.createServer(handle);

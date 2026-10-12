@@ -88,7 +88,9 @@ async function api(path, body, retry = true) {
 async function signIn(fresh) {
   let d;
   if (S.mode === "dev") {
-    d = await rawPost("/api/dev-auth", { name: "Local player" });
+    // Local testing: ?dev=ada and ?dev=bayo in two windows are two different players.
+    const who = new URLSearchParams(location.search).get("dev") || "local";
+    d = await rawPost("/api/dev-auth", { id: who, name: who === "local" ? "Local player" : who });
   } else {
     const session = fresh || !S.initSession ? (await window.Vatar.session()).session : S.initSession;
     S.initSession = null; // a session is only good for 15 minutes; fetch a fresh one next time
@@ -623,7 +625,7 @@ document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-go],[data-tab],[data-buy],[data-opt],[data-key],[data-tab-go],[data-arcade]");
   if (!t) return;
   if (t.dataset.arcade) return arcade.open(t.dataset.arcade);
-  if (S.tab === "arcade-game" && (t.dataset.go || t.dataset.tab)) arcade.leave();
+  if ((S.tab === "arcade-game" || S.tab === "arcade-wait") && (t.dataset.go || t.dataset.tab)) arcade.leave();
   if (t.dataset.key) return pressKey(t.dataset.key);
   if (t.dataset.opt != null) return answer(Number(t.dataset.opt));
   if (t.dataset.buy) return buy(t.dataset.buy);
@@ -664,6 +666,7 @@ document.addEventListener("keydown", (ev) => {
 
 const arcade = createArcade({
   api, screen, toast, esc, fmt, plural, setTab,
+  getMode: () => S.mode,
   showTabs: (on) => { $("#tabs").hidden = !on; },
 });
 
@@ -708,6 +711,7 @@ async function boot() {
 
   $("#tabs").hidden = false;
   renderHome();
+  arcade.resumeVatar();
 }
 
 boot();

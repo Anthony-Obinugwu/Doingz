@@ -19,6 +19,11 @@ export const config = {
     test: env.VATAR_SECRET_TEST || "",
     live: env.VATAR_SECRET_LIVE || "",
   },
+  // Signs friend-game results sent to Lagos Life (shown with your keys as the results secret).
+  resultsSecrets: {
+    test: env.VATAR_RESULTS_SECRET_TEST || "",
+    live: env.VATAR_RESULTS_SECRET_LIVE || "",
+  },
   webhookSecrets: {
     test: env.VATAR_WEBHOOK_SECRET_TEST || "",
     live: env.VATAR_WEBHOOK_SECRET_LIVE || "",

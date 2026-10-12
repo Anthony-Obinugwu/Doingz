@@ -6,6 +6,7 @@ import http from "node:http";
 import { openDb } from "../server/db.js";
 import { createApp } from "../server/app.js";
 import { GAMES, ARCADE_SCORED_PER_DAY, WIN_POINTS } from "../server/arcade.js";
+import { THINGS } from "../public/shared/twenty-kb.js";
 import * as basketball from "../public/shared/basketball.js";
 import * as golf from "../public/shared/golf.js";
 import * as shuffle from "../public/shared/shuffle.js";
@@ -43,12 +44,24 @@ async function playOut(token, gameId) {
   const game = GAMES[gameId];
   const events = [];
   for (let k = 0; k < 400 && match.status === "playing"; k++) {
-    let move = gameId === "seabattle" || gameId === "crazy8" ? null : game.cpu({ g: match.view }, match.seat, Math.random);
+    const viewOnly = ["seabattle", "crazy8", "wordhunt", "anagrams", "twenty"].includes(gameId);
+    let move = viewOnly ? null : game.cpu({ g: match.view }, match.seat, Math.random);
     if (gameId === "seabattle") move = { i: match.view.myShots.findIndex((v) => !v) };
     if (gameId === "crazy8") {
       const v = match.view;
       const ok = v.hand.find((c) => c % 13 === 7 || Math.floor(c / 13) === v.suit || c % 13 === v.top % 13);
       move = ok !== undefined ? { card: ok, suit: 0 } : v.drawsThisTurn < 3 && v.deck > 0 ? { draw: true } : { pass: true };
+    }
+    if (gameId === "wordhunt" || gameId === "anagrams") {
+      if (!match.view.board) move = { start: true };
+      else { clock += 81_000; move = { words: ["zzz", "the", "and", "tea"] }; }
+    }
+    if (gameId === "twenty") {
+      const v = match.view;
+      const order = THINGS.map((t) => t.id);
+      if (v.phase === "pick") move = { pick: "suya" };
+      else if (v.pending) move = { answer: "y" };
+      else move = { guess: order.find((id) => !v.log[v.round].some((e) => e.kind === "guess" && e.id === id)) };
     }
     if (gameId === "paintball") {
       if (!match.view.live) move = { start: true };

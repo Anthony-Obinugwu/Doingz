@@ -119,6 +119,33 @@ export function createApp({ config, db, vatar, now = () => Date.now(), log = con
     }
   }
 
+  // ---------- friend games ----------
+
+  const devOnly = () => { if (!config.devAuth) throw new G.GameError(404, "not_found", "Not found"); };
+  const friendMode = (pid) => {
+    const mode = modeOf(pid);
+    if (mode !== "live" && mode !== "test") throw new G.GameError(403, "lagos_life_only", "Friend games run inside Lagos Life");
+    return mode;
+  };
+
+  /** Sends a finished friend game's result to Lagos Life (once), so game-money stakes settle. */
+  async function report(matchId) {
+    const u = A.unreported(db, matchId);
+    if (!u) return;
+    try {
+      await vatar.postResult(u.mode, u.vatarId, u.nonce, u.winner, now());
+      A.markReported(db, u.id);
+    } catch (e) {
+      // Already settled by an earlier attempt: that's done too. Anything else is retried on the next poll.
+      if (e.code === "already_settled") A.markReported(db, u.id);
+      else log.warn(`result for ${u.vatarId} not sent yet: ${e.code || e.message}`);
+    }
+  }
+  async function afterMatch(out) {
+    if (out?.match?.multi && out.match.status === "done") await report(out.match.id);
+    return out;
+  }
+
   // ---------- routes ----------
 
   const routes = {
@@ -181,14 +208,53 @@ export function createApp({ config, db, vatar, now = () => Date.now(), log = con
       return {
         games: A.listGames(),
         live: A.liveMatches(db, pid, now()),
-        rules: { scoredPerDay: A.ARCADE_SCORED_PER_DAY, win: A.WIN_POINTS, draw: A.DRAW_POINTS },
+        friends: A.liveFriendMatches(db, pid, now()),
+        rules: { scoredPerDay: A.ARCADE_SCORED_PER_DAY, win: A.WIN_POINTS, draw: A.DRAW_POINTS, idleClaimMs: A.IDLE_CLAIM_MS },
         player: G.publicPlayer(db, G.getPlayer(db, pid), today()),
       };
     },
     "POST /api/arcade/start": (req, body) => A.startMatch(db, playerFrom(req), String(body.game || ""), now()),
-    "POST /api/arcade/move": (req, body) => A.moveMatch(db, playerFrom(req), body.matchId, body.move, now()),
-    "POST /api/arcade/forfeit": (req, body) => A.forfeitMatch(db, playerFrom(req), body.matchId, now()),
-    "GET /api/arcade/match": (req, body, url) => A.getMatch(db, playerFrom(req), url.searchParams.get("id")),
+    "POST /api/arcade/move": async (req, body) => afterMatch(A.moveMatch(db, playerFrom(req), body.matchId, body.move, now())),
+    "POST /api/arcade/forfeit": async (req, body) => afterMatch(A.forfeitMatch(db, playerFrom(req), body.matchId, now())),
+    "POST /api/arcade/claim": async (req, body) => afterMatch(A.claimMatch(db, playerFrom(req), body.matchId, now())),
+    "GET /api/arcade/match": async (req, body, url) => {
+      const since = url.searchParams.has("since") ? Number(url.searchParams.get("since")) : undefined;
+      return afterMatch(A.getMatch(db, playerFrom(req), url.searchParams.get("id"), since, now()));
+    },
+
+    // Friend games through Lagos Life: the creator's phone makes a Vatar match, then tells us the game.
+    "POST /api/arcade/lobby": async (req, body) => {
+      const pid = playerFrom(req);
+      const mode = friendMode(pid);
+      const id = String(body.vatarMatchId || "");
+      const vm = await vatar.getMatch(mode, id);
+      if (!vm.players?.some((p) => p.playerId === pid)) throw new G.GameError(403, "not_your_match", "You're not in that match");
+      const lobby = A.registerLobby(db, pid, `v:${id}`, String(body.game || ""), now());
+      return { lobby: { game: lobby.game, status: lobby.status } };
+    },
+    // Both phones call this once the Vatar match is playing; the first call creates the game.
+    "POST /api/arcade/pair": async (req, body) => {
+      const pid = playerFrom(req);
+      const mode = friendMode(pid);
+      const id = String(body.vatarMatchId || "");
+      const vm = await vatar.getMatch(mode, id);
+      const players = (vm.players || []).map((p) => p.playerId);
+      if (!players.includes(pid)) throw new G.GameError(403, "not_your_match", "You're not in that match");
+      if (vm.status !== "playing") throw new G.GameError(409, "not_started", "Waiting for your friend to join");
+      if (players.length !== 2) throw new G.GameError(409, "two_players", "Arcade games are for two players");
+      return A.pairMatch(db, { key: `v:${id}`, players, mode, vatarId: id, nonce: vm.nonce }, pid, now());
+    },
+
+    // Local friend games for development (two browser windows, no Lagos Life).
+    "POST /api/arcade/dev-lobby": (req, body) => { devOnly(); return A.devLobby(db, playerFrom(req), String(body.game || ""), now()); },
+    "GET /api/arcade/dev-lobby": (req, body, url) => { devOnly(); return A.devLobbyStatus(db, playerFrom(req), url.searchParams.get("code")); },
+    "POST /api/arcade/dev-join": (req, body) => { devOnly(); return A.devJoin(db, playerFrom(req), body.code, now()); },
+    "POST /api/arcade/dev-quick": (req, body) => { devOnly(); return A.devQuick(db, playerFrom(req), String(body.game || ""), now()); },
+    "POST /api/arcade/leave-lobby": (req, body) => {
+      const pid = playerFrom(req);
+      A.closeLobby(db, pid, body.code ? `d:${String(body.code).toUpperCase()}` : `v:${String(body.vatarMatchId || "")}`);
+      return { ok: true };
+    },
 
     // The phone says "I paid for this": we check it with Vatar before giving anything.
     "POST /api/claim": async (req, body) => {

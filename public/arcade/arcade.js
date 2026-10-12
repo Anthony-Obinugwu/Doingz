@@ -22,57 +22,260 @@ const ICONS = {
   seabattle: I(`<rect x="2" y="2" width="60" height="60" fill="#3d8bfd" stroke="none"/><path d="M10 38 h40 l-6 10 h-28z" fill="#7a7363"/><rect x="24" y="28" width="12" height="10" fill="#fffdf4"/><path d="M44 14 l8 8 M52 14 l-8 8" stroke="#d9412b" stroke-width="4"/>`),
   filler: I(`<rect x="6" y="6" width="17" height="17" fill="#d9412b"/><rect x="23" y="6" width="17" height="17" fill="#ffc81e"/><rect x="40" y="6" width="17" height="17" fill="#2a62d4"/><rect x="6" y="23" width="17" height="17" fill="#0f8a46"/><rect x="23" y="23" width="17" height="17" fill="#45206b"/><rect x="40" y="23" width="17" height="17" fill="#d9412b"/><rect x="6" y="40" width="17" height="17" fill="#2a62d4"/><rect x="23" y="40" width="17" height="17" fill="#ff8fb1"/><rect x="40" y="40" width="17" height="17" fill="#ffc81e"/>`),
   crazy8: I(`<rect x="8" y="10" width="30" height="42" rx="4" fill="#fffdf4" transform="rotate(-10 23 31)"/><rect x="26" y="10" width="30" height="42" rx="4" fill="#fffdf4" transform="rotate(8 41 31)"/><text x="41" y="38" font-size="20" font-weight="900" fill="#d9412b" stroke="none" text-anchor="middle" font-family="Archivo, sans-serif">8</text>`),
+  wordhunt: I(`<rect x="6" y="6" width="24" height="24" rx="4" fill="#fffdf4"/><rect x="34" y="6" width="24" height="24" rx="4" fill="#ffc81e"/><rect x="6" y="34" width="24" height="24" rx="4" fill="#ffc81e"/><rect x="34" y="34" width="24" height="24" rx="4" fill="#fffdf4"/><path d="M18 18 L46 18 L18 46" stroke="#d9412b" stroke-width="5"/><text x="18" y="24" font-size="15" font-weight="900" text-anchor="middle" stroke="none" fill="#1d1b16" font-family="Archivo, sans-serif">W</text>`),
+  anagrams: I(`<rect x="4" y="22" width="16" height="20" rx="3" fill="#fffdf4"/><rect x="24" y="22" width="16" height="20" rx="3" fill="#ffc81e"/><rect x="44" y="22" width="16" height="20" rx="3" fill="#fffdf4"/><text x="12" y="37" font-size="13" font-weight="900" text-anchor="middle" stroke="none" fill="#1d1b16" font-family="Archivo, sans-serif">E</text><text x="32" y="37" font-size="13" font-weight="900" text-anchor="middle" stroke="none" fill="#1d1b16" font-family="Archivo, sans-serif">K</text><text x="52" y="37" font-size="13" font-weight="900" text-anchor="middle" stroke="none" fill="#1d1b16" font-family="Archivo, sans-serif">O</text><path d="M12 14 q20 -12 40 0 M46 10 l6 4 -7 2" fill="none"/>`),
+  twenty: I(`<circle cx="32" cy="32" r="26" fill="#2a62d4"/><text x="32" y="44" font-size="34" font-weight="900" text-anchor="middle" stroke="none" fill="#fffdf4" font-family="Archivo, sans-serif">?</text>`),
   paintball: I(`<ellipse cx="20" cy="50" rx="14" ry="6" fill="#1d1b16"/><ellipse cx="20" cy="42" rx="14" ry="6" fill="#1d1b16"/><circle cx="40" cy="24" r="10" fill="#fffdf4"/><path d="M30 24 h20" stroke="#d9412b" stroke-width="5"/><circle cx="46" cy="44" r="7" fill="#ff8fb1"/>`),
 };
 
 export function createArcade(app) {
-  const { api, screen, toast, esc, fmt, plural, setTab, showTabs } = app;
-  let cur = null; // { id, match, inst, stage, mod, busy }
-  let meta = null;
+  const { api, screen, toast, esc, plural, setTab, showTabs, getMode } = app;
+  let cur = null;   // the game on screen: { id, match, inst, stage, mod, busy, seq, poll }
+  let meta = null;  // the arcade listing
+  let picking = null; // "friend" | "quick": the next game tile tapped starts a friend game
+  let stake = 0;
+  let waiting = null; // { code, vatarId, devCode, timer }
+
+  const vatar = () => (getMode() === "dev" ? null : window.Vatar);
+  const MATCH_ERRORS = {
+    not_available: "Friend games open once Lagos Life switches them on for Doingz.",
+    not_multiplayer: "Friend games open once Lagos Life switches them on for Doingz.",
+    friendly_only: "Game-money stakes aren't on yet. Try a friendly.",
+    limit: "That's over today's game-money limit.",
+    not_found: "No open game with that code.",
+    not_open: "That game is full, started or over.",
+    signed_out: "Sign in to Lagos Life to play friends.",
+    off: "Friend games are switched off right now.",
+  };
+  const matchError = (e) => toast(MATCH_ERRORS[e.code] || e.message || "That didn't work. Try again.");
+
+  // ---------- the list ----------
 
   async function renderList() {
     leave();
+    stopWaiting();
     setTab("arcade");
     let d;
     try { d = await api("/api/arcade"); } catch (e) { return screen(`<h1 class="big title">Arcade</h1><p>${esc(e.message)}</p>`); }
     meta = d;
     const left = d.player.arcadeScoredLeft;
+    const title = (id) => d.games.find((g) => g.id === id)?.title || id;
     screen(`
       <h1 class="big title">Arcade</h1>
-      <p>Beat the computer. Your first ${d.rules.scoredPerDay} games each day earn points: ${d.rules.win} for a win, ${d.rules.draw} for a draw.
+      <p>Play the computer or a friend. Your first ${d.rules.scoredPerDay} games each day earn points: ${d.rules.win} for a win, ${d.rules.draw} for a draw.
         ${left ? `${plural(left, "scored game")} left today.` : "Today's scored games are done; keep playing for fun."}</p>
-      ${[["skill", "Skill and aim"], ["board", "Board and cards"]].map(([kind, heading]) => `
+
+      <section class="panel people">
+        <h2 class="big">Play with people</h2>
+        ${d.friends.length ? `<div class="stack">${d.friends.map((f) => `<button class="btn" data-friend-match="${f.id}">Back to your ${esc(title(f.game))} game</button>`).join("")}</div>` : ""}
+        ${picking ? `<p class="pick-note"><b>${picking === "friend" ? "Now pick a game to challenge your friend to." : "Now pick a game. If someone's already waiting, you'll play their game."}</b>
+            <button class="linkish" data-people="cancel">Cancel</button></p>` : `
+          <div class="people-actions">
+            <button class="btn" data-people="friend">Invite a friend</button>
+            <button class="btn light" data-people="quick">Quick match</button>
+          </div>
+          <form class="join-row" data-join>
+            <input name="code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="Got a code?" aria-label="Friend's code" />
+            <button class="btn light" type="submit">Join</button>
+          </form>`}
+        ${vatar() ? `<div class="stake-row" role="group" aria-label="Stake">${[0, 500, 1000, 5000].map((v) =>
+          `<button data-stake="${v}" aria-pressed="${v === stake}">${v ? "₦" + v.toLocaleString("en-NG") : "Friendly"}</button>`).join("")}</div>
+          <p class="muted note">Stakes are Lagos Life game money, never real money. The winner takes the pot.</p>` : ""}
+      </section>
+
+      ${[["skill", "Skill and aim"], ["board", "Board and cards"], ["words", "Words and party"]].map(([kind, heading]) => `
         <h2 class="arcade-section">${heading}</h2>
         <div class="arcade-grid">
           ${d.games.filter((g) => g.kind === kind).map((g) => `
-            <button class="game-tile" data-arcade="${g.id}">
+            <button class="game-tile${picking ? " picking" : ""}" data-arcade="${g.id}">
               ${ICONS[g.id] || ""}
               <b>${esc(g.title)}</b>
               <span>${esc(g.blurb)}</span>
-              ${d.live[g.id] ? `<em>Carry on</em>` : ""}
+              ${d.live[g.id] && !picking ? `<em>Carry on</em>` : ""}
             </button>`).join("")}
-        </div>`).join("")}
-      <p class="muted fine">Word games are next.</p>`);
+        </div>`).join("")}`);
   }
+
+  // Taps inside the people panel (the app's own click handler routes data-arcade to tapGame).
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-people],[data-stake],[data-friend-match],[data-cancel-wait],[data-claim],[data-resign]");
+    if (!t) return;
+    if (t.dataset.people === "cancel") { picking = null; return renderList(); }
+    if (t.dataset.people) { picking = t.dataset.people; return renderList(); }
+    if (t.dataset.stake !== undefined) { stake = Number(t.dataset.stake); return renderList(); }
+    if (t.dataset.friendMatch) return openMatch(t.dataset.friendMatch);
+    if (t.dataset.cancelWait !== undefined) return cancelWaiting();
+    if (t.dataset.claim !== undefined) return claimWin();
+    if (t.dataset.resign !== undefined) return resign();
+  });
+  document.addEventListener("submit", (e) => {
+    const f = e.target.closest("[data-join]");
+    if (!f) return;
+    e.preventDefault();
+    const code = String(new FormData(f).get("code") || "").trim().toUpperCase();
+    if (code.length === 6) joinCode(code);
+    else toast("Codes are six letters");
+  });
+
+  /** A game tile was tapped: play the computer, or start a friend game if we're picking one. */
+  function tapGame(id) {
+    if (!picking) return open(id);
+    const how = picking;
+    picking = null;
+    return how === "friend" ? challenge(id) : quickMatch(id);
+  }
+
+  // ---------- finding a friend ----------
+
+  function waitingScreen({ code, game, quick }) {
+    leave();
+    setTab("arcade-wait");
+    const title = meta?.games.find((g) => g.id === game)?.title || "a game";
+    screen(`<section class="stack waiting">
+      <h1 class="big title">${quick ? "Finding a player" : "Waiting for your friend"}</h1>
+      ${code ? `<p>Share this code. Your friend taps Arcade, then <b>Join</b>, and types it in:</p>
+        <p class="code-big" aria-label="Code ${esc(code.split("").join(" "))}">${esc(code)}</p>` : ""}
+      <p>Game: <b>${esc(title)}</b>${stake && vatar() ? `, stake ₦${stake.toLocaleString("en-NG")} game money` : ""}.</p>
+      <p class="muted">${quick ? "Anyone looking for a game can join." : "This code works for 15 minutes."}</p>
+      <button class="btn light" data-cancel-wait>Cancel</button>
+    </section>`);
+  }
+
+  function stopWaiting() {
+    if (waiting?.timer) clearInterval(waiting.timer);
+    waiting = null;
+  }
+
+  async function cancelWaiting() {
+    const w = waiting;
+    stopWaiting();
+    try {
+      if (w?.devCode) await api("/api/arcade/leave-lobby", { code: w.devCode });
+      if (w?.vatarId) { await window.Vatar.match.leave(); await api("/api/arcade/leave-lobby", { vatarMatchId: w.vatarId }); }
+    } catch { /* already gone */ }
+    renderList();
+  }
+
+  /** Lagos Life: once the Vatar match is playing, both phones ask our server for the game. */
+  async function pairAndOpen(vatarId) {
+    for (let k = 0; k < 8; k++) {
+      try {
+        const d = await api("/api/arcade/pair", { vatarMatchId: vatarId });
+        stopWaiting();
+        return openMatch(d.match.id, d.match);
+      } catch (e) {
+        if (e.code !== "lobby_pending" && e.code !== "not_started") { toast(e.message); return renderList(); }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+    toast("Couldn't start the game. Try again.");
+    renderList();
+  }
+
+  function watchVatar(vm, game, quick) {
+    waiting = { vatarId: vm.id, timer: null };
+    waitingScreen({ code: quick ? null : vm.code, game, quick });
+    const check = async () => {
+      try {
+        const now = await window.Vatar.match.current();
+        if (!waiting || !now || now.id !== vm.id) return;
+        if (now.status === "playing") { const id = vm.id; stopWaiting(); pairAndOpen(id); }
+        if (now.status === "cancelled" || now.status === "void") { stopWaiting(); toast("That game was cancelled"); renderList(); }
+      } catch { /* try again next tick */ }
+    };
+    waiting.timer = setInterval(check, 2500);
+  }
+
+  async function challenge(game) {
+    if (getMode() === "dev") {
+      try {
+        const d = await api("/api/arcade/dev-lobby", { game });
+        waiting = { devCode: d.code, timer: null };
+        waitingScreen({ code: d.code, game });
+        waiting.timer = setInterval(async () => {
+          try {
+            const s = await api(`/api/arcade/dev-lobby?code=${d.code}`);
+            if (s.matchId && waiting) { stopWaiting(); openMatch(s.matchId); }
+          } catch { /* keep waiting */ }
+        }, 2000);
+      } catch (e) { matchError(e); }
+      return;
+    }
+    try {
+      const vm = await window.Vatar.match.create({ stake, seats: 2 });
+      await api("/api/arcade/lobby", { vatarMatchId: vm.id, game });
+      watchVatar(vm, game, false);
+    } catch (e) { if (e.code !== "cancelled") matchError(e); }
+  }
+
+  async function quickMatch(game) {
+    if (getMode() === "dev") {
+      try {
+        const d = await api("/api/arcade/dev-quick", { game });
+        if (d.match) return openMatch(d.match.id, d.match);
+        waiting = { devCode: d.code, timer: null };
+        waitingScreen({ code: null, game, quick: true });
+        waiting.timer = setInterval(async () => {
+          try {
+            const s = await api(`/api/arcade/dev-lobby?code=${d.code}`);
+            if (s.matchId && waiting) { stopWaiting(); openMatch(s.matchId); }
+          } catch { /* keep waiting */ }
+        }, 2000);
+      } catch (e) { matchError(e); }
+      return;
+    }
+    try {
+      const vm = await window.Vatar.match.quick({ stake });
+      if (vm.status === "playing") return pairAndOpen(vm.id);
+      await api("/api/arcade/lobby", { vatarMatchId: vm.id, game });
+      watchVatar(vm, game, true);
+    } catch (e) { if (e.code !== "cancelled") matchError(e); }
+  }
+
+  async function joinCode(code) {
+    if (getMode() === "dev") {
+      try { const d = await api("/api/arcade/dev-join", { code }); return openMatch(d.match.id, d.match); } catch (e) { return matchError(e); }
+    }
+    try {
+      const vm = await window.Vatar.match.join(code);
+      return pairAndOpen(vm.id);
+    } catch (e) { if (e.code !== "cancelled") matchError(e); }
+  }
+
+  /** On start-up inside Lagos Life: if we're in a friend match already, go back to it. */
+  async function resumeVatar() {
+    if (!vatar()?.match) return;
+    try {
+      const vm = await window.Vatar.match.current();
+      if (vm?.status === "playing") pairAndOpen(vm.id);
+    } catch { /* not in a match */ }
+  }
+
+  // ---------- the game screen ----------
 
   function leave() {
     if (!cur) return;
+    clearTimeout(cur.poll);
     cur.inst?.destroy?.();
-    cur.stage?.destroy();
+    cur.stage?.destroy?.();
     cur = null;
     showTabs(true);
   }
 
   const myTurn = () => cur && cur.match.status === "playing" && cur.match.toMove.includes(cur.match.seat);
+  const opponent = () => (cur ? cur.match.names[1 - cur.match.seat] : "");
 
-  function setStatus(text) {
+  function setStatus(text, extra = "") {
     const el = document.getElementById("game-status");
-    if (el) el.textContent = text;
+    if (el) el.innerHTML = esc(text) + extra;
   }
   function defaultStatus() {
     if (!cur) return;
     if (cur.match.status !== "playing") return setStatus("Game over");
-    setStatus(myTurn() ? cur.hint || cur.mod.how || "Your turn" : "Computer is playing…");
+    if (myTurn()) return setStatus(cur.hint || cur.mod.how || "Your turn");
+    if (!cur.match.multi) return setStatus("Computer is playing…");
+    const claim = cur.match.canClaim ? ` <button class="linkish" data-claim>They've gone quiet: claim the win</button>` : "";
+    setStatus(`${opponent()} is playing…`, claim);
   }
 
   function updateScore() {
@@ -89,56 +292,121 @@ export function createArcade(app) {
     if (!r) return;
     const won = r.winner === m.seat;
     const draw = r.winner === null;
+    const them = m.names[1 - m.seat];
     const pts = r.points?.[m.seat] || 0;
+    let head = won ? "You win!" : draw ? "It's a draw" : `${them} wins`;
+    let note = "";
+    if (r.forfeit === m.seat) head = m.multi ? "You resigned" : "You left the game";
+    else if (r.forfeit !== undefined) note = `${them} resigned.`;
+    if (r.timeout !== undefined) note = r.timeout === m.seat ? "You ran out of time." : `${them} went quiet, so the win is yours.`;
+    clearTimeout(cur.poll);
+    document.querySelector("[data-resign]")?.remove();
     const box = document.getElementById("game-result");
     box.hidden = false;
     box.innerHTML = `<div class="panel result-card">
-      <h2 class="big">${r.forfeit === m.seat ? "You left the game" : won ? "You win!" : draw ? "It's a draw" : "Computer wins"}</h2>
+      <h2 class="big">${esc(head)}</h2>
+      ${note ? `<p>${esc(note)}</p>` : ""}
       <p><b>${m.scored ? (pts ? `+${pts} points` : "No points this time") : "Practice game: no points"}</b></p>
       <div class="stack">
-        <button class="btn" data-arcade="${m.game}">Play again</button>
+        ${m.multi ? `<button class="btn" data-people="friend">Challenge someone again</button>` : `<button class="btn" data-arcade="${m.game}">Play again</button>`}
         <button class="btn light" data-go="arcade">Back to the arcade</button>
       </div></div>`;
   }
 
+  /** Opens a match: a new one against the computer (by game id) or an existing friend game. */
   async function open(id) {
-    leave();
-    setTab("arcade-game");
     let d;
     try { d = await api("/api/arcade/start", { game: id }); } catch (e) { toast(e.message); return renderList(); }
+    return mount(d.match);
+  }
+  async function openMatch(matchId, match) {
+    if (!match) {
+      try { match = (await api(`/api/arcade/match?id=${encodeURIComponent(matchId)}`)).match; } catch (e) { toast(e.message); return renderList(); }
+    }
+    return mount(match);
+  }
+
+  async function mount(match) {
+    leave();
+    stopWaiting();
+    setTab("arcade-game");
+    const id = match.game;
     const mod = await import(`/arcade/${id}.js`);
     showTabs(false);
+    if (!meta) { try { meta = await api("/api/arcade"); } catch { /* titles fall back to ids */ } }
     const g = (meta?.games || []).find((x) => x.id === id) || { title: id };
     screen(`
       <div class="game">
         <div class="row">
           <button class="back" data-go="arcade">‹ Arcade</button>
-          <span class="chip">${d.match.scored ? "Scored game" : "Practice"}</span>
+          ${match.multi && match.status === "playing" ? `<button class="linkish" data-resign>Resign</button>` : ""}
+          <span class="chip">${match.multi ? "Friend game" : match.scored ? "Scored game" : "Practice"}</span>
         </div>
         <div class="score-strip">
           <div><span>You</span><b id="score-a">0</b></div>
           <div class="game-name"><b>${esc(g.title)}</b><span id="score-unit"></span></div>
-          <div><span>Computer</span><b id="score-b">0</b></div>
+          <div><span>${esc(match.names[1 - match.seat])}</span><b id="score-b">0</b></div>
         </div>
         <p class="game-status" id="game-status" aria-live="polite"></p>
         <div class="stage-box" id="stage-box"><div class="game-result" id="game-result" hidden></div></div>
         <div class="game-bar" id="game-bar"></div>
       </div>`);
-    const stage = makeStage(document.getElementById("stage-box"), mod.W, mod.H);
-    cur = { id, match: d.match, stage, mod, busy: false, hint: null };
+    const box = document.getElementById("stage-box");
+    const stage = mod.HTML ? null : makeStage(box, mod.W, mod.H);
+    if (mod.HTML) box.classList.add("html-game");
+    cur = { id, match, stage, mod, busy: false, hint: null, seq: match.seq ?? null, poll: 0 };
+    const me = cur;
     cur.inst = mod.default({
       stage,
+      host: box,
       bar: document.getElementById("game-bar"),
-      seat: d.match.seat,
-      canMove: () => myTurn() && !cur.busy,
+      seat: match.seat,
+      canMove: () => myTurn() && !me.busy,
       submit,
-      hint: (t) => { cur.hint = t; defaultStatus(); },
+      hint: (t) => { me.hint = t; defaultStatus(); },
       toast,
     });
-    cur.inst.render(d.match);
+    cur.inst.render(match);
     updateScore();
     defaultStatus();
-    if (d.match.status !== "playing") showResult();
+    if (match.status !== "playing") showResult();
+    if (match.multi) schedulePoll(me);
+  }
+
+  // Friend games: while it's their turn, check for their moves every couple of seconds.
+  function schedulePoll(me, ms = 2000) {
+    clearTimeout(me.poll);
+    me.poll = setTimeout(() => poll(me), ms);
+  }
+  // On your own turn we still check now and then, in case they resign or claim a timeout.
+  async function poll(me) {
+    if (cur !== me || me.match.status !== "playing") return;
+    if (me.busy) return schedulePoll(me, 1500);
+    const mine = myTurn();
+    try {
+      const q = me.seq === null ? "" : `&since=${me.seq}`;
+      const d = await api(`/api/arcade/match?id=${encodeURIComponent(me.match.id)}${q}`);
+      if (cur !== me || me.busy) return schedulePoll(me, 1500);
+      if (!d.events.length && d.match.status === "playing" && d.match.canClaim === me.match.canClaim && mine) {
+        // Nothing new: leave the board alone so a drag or a half-typed word isn't disturbed.
+        return schedulePoll(me, 5000);
+      }
+      if (d.events.length) {
+        me.busy = true;
+        const before = me.match;
+        me.match = { ...before, toMove: [] };
+        await me.inst.play(d.events, d.match, before);
+        me.busy = false;
+        if (cur !== me) return;
+      }
+      me.seq = d.seq;
+      me.match = d.match;
+      me.inst.render(d.match);
+      updateScore();
+      defaultStatus();
+      if (d.match.status !== "playing") return showResult();
+    } catch { /* network blip: try again */ }
+    schedulePoll(me);
   }
 
   async function submit(move) {
@@ -151,14 +419,16 @@ export function createArcade(app) {
       if (cur !== me) return d;
       const before = me.match;
       me.match = { ...before, toMove: [] }; // no input while the animation plays
-      setStatus(d.events.some((e) => e.seat !== me.match.seat) ? "Computer is playing…" : "");
+      setStatus(d.events.some((e) => e.seat !== me.match.seat) ? `${opponent()} is playing…` : "");
       await me.inst.play(d.events, d.match, before);
       if (cur !== me) return d;
       me.match = d.match;
+      if (d.match.seq !== null && d.match.seq !== undefined) me.seq = d.match.seq;
       me.busy = false; // before render, so the game sees whose turn it is
       me.inst.render(d.match);
       updateScore();
       if (d.match.status !== "playing") showResult();
+      else if (d.match.multi) schedulePoll(me);
       return d;
     } catch (e) {
       toast(e.message || "That didn't go through");
@@ -169,10 +439,31 @@ export function createArcade(app) {
     }
   }
 
+  async function claimWin() {
+    if (!cur) return;
+    try {
+      const d = await api("/api/arcade/claim", { matchId: cur.match.id });
+      cur.match = d.match;
+      updateScore();
+      showResult();
+    } catch (e) { toast(e.message); }
+  }
+
+  async function resign() {
+    if (!cur || !window.confirm("Resign this game? They'll get the win.")) return;
+    try {
+      const d = await api("/api/arcade/forfeit", { matchId: cur.match.id });
+      cur.match = d.match;
+      showResult();
+    } catch (e) { toast(e.message); }
+  }
+
   return {
     renderList,
-    open,
-    leave,
+    open: tapGame,
+    openMatch,
+    leave: () => { leave(); stopWaiting(); },
+    resumeVatar,
     active: () => !!cur,
     pause: () => cur?.inst?.pause?.(),
     resume: () => cur?.inst?.resume?.(),

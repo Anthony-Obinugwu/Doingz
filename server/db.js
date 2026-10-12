@@ -99,9 +99,41 @@ export function openDb(dataDir) {
     );
   `);
   // Columns added after launch: add them to databases created before they existed.
-  const cols = new Set(db.prepare("PRAGMA table_info(players)").all().map((c) => c.name));
-  if (!cols.has("arcade_day")) db.exec("ALTER TABLE players ADD COLUMN arcade_day INTEGER");
-  if (!cols.has("arcade_scored")) db.exec("ALTER TABLE players ADD COLUMN arcade_scored INTEGER NOT NULL DEFAULT 0");
+  const addColumns = (table, defs) => {
+    const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+    for (const [name, def] of defs) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${def}`);
+  };
+  addColumns("players", [["arcade_day", "INTEGER"], ["arcade_scored", "INTEGER NOT NULL DEFAULT 0"]]);
+  addColumns("arcade_matches", [
+    ["mode", "TEXT NOT NULL DEFAULT 'cpu'"],   // cpu | dev | test | live
+    ["vatar_id", "TEXT"],                      // the Lagos Life match, for friend games
+    ["nonce", "TEXT"],                         // Vatar's value we sign the result with
+    ["scored_seats", "TEXT"],                  // which seats earn points, e.g. [1, 0]
+    ["turn_at", "INTEGER"],                    // when the current turn began (for timeouts)
+    ["reported", "INTEGER NOT NULL DEFAULT 0"],// result sent to Lagos Life
+  ]);
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS arcade_vatar ON arcade_matches (vatar_id) WHERE vatar_id IS NOT NULL;
+
+    -- What each person in a friend game should replay, move by move (already redacted for them).
+    CREATE TABLE IF NOT EXISTS arcade_events (
+      match_id TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      seat INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      PRIMARY KEY (match_id, seq, seat)
+    );
+
+    -- Friend-game lobbies: a Lagos Life match waiting for its game, or a local code in dev.
+    CREATE TABLE IF NOT EXISTS lobbies (
+      key TEXT PRIMARY KEY,                    -- "v:<vatar match id>" or "d:<code>"
+      game TEXT NOT NULL,
+      creator TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',     -- open | paired | closed
+      match_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
   return db;
 }
 

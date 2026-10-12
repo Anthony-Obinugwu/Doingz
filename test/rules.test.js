@@ -134,3 +134,20 @@ test("dots and boxes: closing a box keeps your turn", () => {
   assert.deepEqual(ev[0].closed, [0]);
   assert.equal(st.g.turn, 1, "the closer goes again");
 });
+
+test("20 Questions: every thing can be told apart, and every question matters", async () => {
+  const { THINGS, QUESTIONS, truth } = await import("../public/shared/twenty-kb.js");
+  const sig = (t) => QUESTIONS.map((q) => (truth(t.id, q.id) ? 1 : 0)).join("");
+  const seen = new Map();
+  for (const t of THINGS) {
+    const s = sig(t);
+    assert.ok(!seen.has(s), `${t.id} and ${seen.get(s)} answer every question the same way`);
+    seen.set(s, t.id);
+    for (const qid of t.yes) assert.ok(QUESTIONS.some((q) => q.id === qid), `${t.id} uses unknown question ${qid}`);
+  }
+  assert.equal(new Set(THINGS.map((t) => t.id)).size, THINGS.length, "ids are unique");
+  for (const q of QUESTIONS) {
+    const yes = THINGS.filter((t) => truth(t.id, q.id)).length;
+    assert.ok(yes > 0 && yes < THINGS.length, `"${q.id}" splits nothing`);
+  }
+});

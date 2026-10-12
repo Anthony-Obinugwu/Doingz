@@ -266,6 +266,56 @@ main:has(.game) { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 .result-card { width: min(100%, 320px); box-shadow: 6px 6px 0 var(--tile-line); }
 .result-card .big { font-size: 42px; margin-bottom: 6px; }
 
+.stage-box.html-game { display: block; overflow-y: auto; place-items: initial; }
+
+/* 20 Questions */
+.tq { display: grid; gap: 12px; padding-bottom: 8px; }
+.tq-card { background: var(--panel); color: var(--on-panel); border: 3px solid var(--tile-line); border-radius: var(--radius-lg); box-shadow: 4px 4px 0 var(--tile-line); padding: 12px; }
+.tq-card h3 { margin: 0 0 6px; font-weight: 900; font-stretch: 70%; font-size: 24px; line-height: 1.05; }
+.tq-ask { font-weight: 800; font-stretch: 80%; font-size: 24px; line-height: 1.15; margin: 4px 0 12px; }
+.tq-yn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tq-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.tq-tabs button { flex: 0 0 auto; border: 2.5px solid var(--tile-line); border-radius: 999px; background: var(--panel); padding: 5px 12px; font-weight: 800; font-stretch: 80%; }
+.tq-tabs button[aria-pressed="true"] { background: var(--bar); color: var(--on-bar); }
+.tq-list { display: grid; gap: 8px; }
+.tq-list button { text-align: left; border: 2.5px solid var(--tile-line); border-radius: 10px; background: var(--panel); padding: 10px 12px; font-weight: 700; font-size: 16px; }
+.tq-list button:disabled { opacity: 0.55; }
+.tq-list button b { float: right; font-weight: 900; }
+.tq-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tq-log li { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; border-bottom: 2px dashed rgba(29,27,22,0.25); padding-bottom: 6px; }
+.tq-log li b { white-space: nowrap; }
+.tq-things { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tq-things button { border: 2.5px solid var(--tile-line); border-radius: 10px; background: var(--panel); padding: 9px 8px; font-weight: 800; font-stretch: 85%; font-size: 15px; }
+
+/* word games */
+.found-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 92px; overflow-y: auto; }
+.found-list span { border: 2px solid var(--tile-line); border-radius: 999px; padding: 1px 9px; font-weight: 800; font-stretch: 85%; font-size: 14px; background: var(--panel); text-transform: uppercase; }
+.found-list span.naija { background: var(--bar); color: var(--on-bar); }
+.word-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+/* friend games */
+.people { margin-top: 14px; }
+.people .big { font-size: 30px; margin-bottom: 10px; }
+.people-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.join-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 10px; }
+.join-row input {
+  min-width: 0; width: 100%; min-height: 52px; border: 3px solid var(--tile-line); border-radius: 999px; padding: 0 18px; background: var(--panel); color: var(--on-panel);
+  font: 800 20px/1 var(--font); font-stretch: 80%; letter-spacing: 0.18em; text-transform: uppercase;
+}
+.join-row .btn { width: auto; min-width: 0; padding-left: 22px; padding-right: 22px; }
+.stake-row { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.stake-row button { border: 2.5px solid var(--tile-line); border-radius: 999px; background: var(--panel); padding: 5px 12px; font-weight: 800; font-stretch: 80%; }
+.stake-row button[aria-pressed="true"] { background: var(--bar); color: var(--on-bar); }
+.pick-note { margin: 0; }
+.game-tile.picking { outline: 4px dashed var(--bar); outline-offset: 3px; }
+.waiting { padding-top: 6vh; }
+.code-big {
+  font-weight: 900; font-stretch: 62%; font-size: 72px; letter-spacing: 0.12em; margin: 4px 0; text-align: center;
+  background: var(--panel); color: var(--on-panel); border: 3px solid var(--tile-line); border-radius: var(--radius-lg); box-shadow: 5px 5px 0 var(--tile-line);
+}
+.game .row .linkish { margin-left: auto; margin-right: 10px; }
+.game-status .linkish { display: inline; padding: 0 0 0 6px; }
+
 /* ---------- overlays ---------- */
 
 .toast {
@@ -288,3 +338,5 @@ main:has(.game) { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   .toast { transition: none; }
 }
 @media (min-width: 560px) { main { width: 100%; max-width: 520px; margin: 0 auto; } }
+.people-actions .btn { font-size: 17px; padding: 10px 12px; }
+.join-row input::placeholder { letter-spacing: 0.02em; text-transform: none; font-weight: 700; }

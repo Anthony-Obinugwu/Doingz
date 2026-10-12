@@ -86,6 +86,11 @@ const game = {
     return [{ type: "play", seat, card: c, suit: g.suit, left: hand.length }];
   },
 
+  // In a friend game, the other player sees that you drew, not what.
+  redact(ev, viewer) {
+    return ev.type === "draw" && ev.seat !== viewer ? { ...ev, card: null } : ev;
+  },
+
   cpu(st, seat) {
     const g = st.g;
     const hand = g.hands[seat];

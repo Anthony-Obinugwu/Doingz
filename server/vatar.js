@@ -9,8 +9,8 @@ export class VatarError extends Error {
   }
 }
 
-export function makeVatar({ api, secrets, fetchImpl = fetch }) {
-  const call = async (mode, path, body) => {
+export function makeVatar({ api, secrets, resultsSecrets = {}, fetchImpl = fetch }) {
+  const call = async (mode, path, body, extraHeaders = {}) => {
     const secret = secrets[mode];
     if (!secret) throw new VatarError(500, "no_secret", `No Vatar ${mode} secret is configured`);
     let res;
@@ -18,7 +18,7 @@ export function makeVatar({ api, secrets, fetchImpl = fetch }) {
       res = await fetchImpl(api + path, {
         method: body ? "POST" : "GET",
         body: body ? JSON.stringify(body) : undefined,
-        headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json", ...extraHeaders },
         signal: AbortSignal.timeout(8000),
       });
     } catch {
@@ -33,6 +33,19 @@ export function makeVatar({ api, secrets, fetchImpl = fetch }) {
     verifySession: (mode, session) => call(mode, "/session/verify", { session }),
     getPurchase: (mode, id) => call(mode, `/purchases/${encodeURIComponent(id)}`),
     deliver: (mode, id) => call(mode, `/purchases/${encodeURIComponent(id)}/deliver`, {}),
+    getMatch: (mode, id) => call(mode, `/matches/${encodeURIComponent(id)}`),
+    /** Posts a friend game's result, signed with the results secret (see the Vatar docs). */
+    postResult: (mode, id, nonce, winner, now = Date.now()) => {
+      const rs = resultsSecrets[mode];
+      if (!rs) throw new VatarError(500, "no_results_secret", `No Vatar ${mode} results secret is configured`);
+      const path = `${new URL(api).pathname.replace(/\/$/, "")}/matches/${encodeURIComponent(id)}/result`;
+      const body = { winner };
+      const raw = JSON.stringify(body);
+      const ts = String(Math.floor(now / 1000));
+      const sha = crypto.createHash("sha256").update(raw).digest("hex");
+      const sig = "v1=" + crypto.createHmac("sha256", rs).update(["POST", path, ts, nonce, sha].join("\n")).digest("hex");
+      return call(mode, `/matches/${encodeURIComponent(id)}/result`, body, { "X-Vatar-Timestamp": ts, "X-Vatar-Signature": sig });
+    },
   };
 }
 

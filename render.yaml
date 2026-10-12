@@ -23,7 +23,11 @@ services:
         sync: false
       - key: VATAR_WEBHOOK_SECRET_TEST
         sync: false
+      - key: VATAR_RESULTS_SECRET_TEST
+        sync: false
       - key: VATAR_SECRET_LIVE
         sync: false
       - key: VATAR_WEBHOOK_SECRET_LIVE
+        sync: false
+      - key: VATAR_RESULTS_SECRET_LIVE
         sync: false
