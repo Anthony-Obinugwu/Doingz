@@ -46,6 +46,8 @@ export function createArcade(app) {
     not_open: "That game is full, started or over.",
     signed_out: "Sign in to Lagos Life to play friends.",
     off: "Friend games are switched off right now.",
+    busy: "You're still in another friend game. Finish or cancel it first.",
+    timeout: "Lagos Life didn't answer. Try again.",
   };
   const matchError = (e) => toast(MATCH_ERRORS[e.code] || e.message || "That didn't work. Try again.");
 
@@ -158,14 +160,40 @@ export function createArcade(app) {
     waiting = null;
   }
 
-  async function cancelWaiting() {
+  /** Leaves the friend game we're waiting on (Cancel, or walking away from the waiting screen), so Lagos Life doesn't keep us in it. */
+  async function abandonWaiting() {
     const w = waiting;
     stopWaiting();
     try {
       if (w?.devCode) await api("/api/arcade/leave-lobby", { code: w.devCode });
       if (w?.vatarId) { await window.Vatar.match.leave(); await api("/api/arcade/leave-lobby", { vatarMatchId: w.vatarId }); }
     } catch { /* already gone */ }
+  }
+
+  async function cancelWaiting() {
+    await abandonWaiting();
     renderList();
+  }
+
+  /**
+   * Runs a Lagos Life match call. If it answers "busy" we're still in an older match:
+   * go back to it if it's being played, otherwise leave it and try once more. Resolves null if we went back.
+   */
+  async function withFreeSeat(call) {
+    try {
+      return await call();
+    } catch (e) {
+      if (e.code !== "busy") throw e;
+      const old = await window.Vatar.match.current().catch(() => null);
+      if (old?.status === "playing") {
+        toast("You're still in a friend game. Taking you back.");
+        pairAndOpen(old.id);
+        return null;
+      }
+      await window.Vatar.match.leave().catch(() => {});
+      if (old?.id) await api("/api/arcade/leave-lobby", { vatarMatchId: old.id }).catch(() => {});
+      return call();
+    }
   }
 
   /** Lagos Life: once the Vatar match is playing, both phones ask our server for the game. */
@@ -214,7 +242,8 @@ export function createArcade(app) {
       return;
     }
     try {
-      const vm = await window.Vatar.match.create({ stake, seats: 2 });
+      const vm = await withFreeSeat(() => window.Vatar.match.create({ stake, seats: 2 }));
+      if (!vm) return;
       await api("/api/arcade/lobby", { vatarMatchId: vm.id, game });
       watchVatar(vm, game, false);
     } catch (e) { if (e.code !== "cancelled") matchError(e); }
@@ -237,7 +266,8 @@ export function createArcade(app) {
       return;
     }
     try {
-      const vm = await window.Vatar.match.quick({ stake });
+      const vm = await withFreeSeat(() => window.Vatar.match.quick({ stake }));
+      if (!vm) return;
       if (vm.status === "playing") return pairAndOpen(vm.id);
       await api("/api/arcade/lobby", { vatarMatchId: vm.id, game });
       watchVatar(vm, game, true);
@@ -249,7 +279,8 @@ export function createArcade(app) {
       try { const d = await api("/api/arcade/dev-join", { code }); return openMatch(d.match.id, d.match); } catch (e) { return matchError(e); }
     }
     try {
-      const vm = await window.Vatar.match.join(code);
+      const vm = await withFreeSeat(() => window.Vatar.match.join(code));
+      if (!vm) return;
       return pairAndOpen(vm.id);
     } catch (e) { if (e.code !== "cancelled") matchError(e); }
   }
@@ -519,7 +550,7 @@ export function createArcade(app) {
     renderList,
     open: tapGame,
     openMatch,
-    leave: () => { leave(); stopWaiting(); },
+    leave: () => { leave(); abandonWaiting(); },
     resumeVatar,
     active: () => !!cur,
     pause: () => cur?.inst?.pause?.(),
