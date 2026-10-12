@@ -22,6 +22,13 @@ To get approved and live on Lagos Life:
 3. **Purchase verified by server**: Handled by `/api/claim` -> Vatar verification API.
 4. **Marked delivered**: Handled by `/api/claim` -> Vatar deliver API.
 5. **Webhook answered 2xx**: Optional, tested via "Send test webhook" button.
+6. **Multiplayer (A test match played)**:
+   - Appears because `VATAR_RESULTS_SECRET_TEST` is registered with Vatar.
+   - Verification flow:
+     1. Confirm `VATAR_RESULTS_SECRET_TEST` is set in Render Environment Variables (from keys: `vtr_rsec_test_...`).
+     2. In the Sandbox, create a match (Arcade -> Invite a friend or Quick Match).
+     3. In the sandbox player frame, let the test bot take the second seat (or pair via Quick Match).
+     4. Once the game loads, tap **Resign** in Doingz.
+     5. The Doingz server signs the result with `VATAR_RESULTS_SECRET_TEST` and posts it to Vatar.
+     6. Vatar verifies the signature and ticks the checklist item.
 
-Once items 1–4 are ticked, the listing can be submitted for review.
-Multiplayer matches are activated by Lagos Life upon platform approval.
